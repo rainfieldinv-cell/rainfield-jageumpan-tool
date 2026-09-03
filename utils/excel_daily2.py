@@ -24,20 +24,26 @@ from openpyxl.utils import get_column_letter as _L
 
 FONT = Font(name="맑은 고딕", size=10)
 FONT_B = Font(name="맑은 고딕", size=10, bold=True)
-FONT_W = Font(name="맑은 고딕", size=13, bold=True, color="FFFFFF")
+FONT_W = Font(name="맑은 고딕", size=10, bold=True, color="FFFFFF")
+FONT_BAR = Font(name="맑은 고딕", size=11, bold=True)
 
 FMT_WON = "#,##0"
 FMT_RATE = '"연" 0.00%'
 FMT_RATE2 = "0.00%"
 FMT_DATE = "yyyy-mm-dd(aaa)"
 
-FILL_LABEL = PatternFill("solid", fgColor="F2F2F2")
-FILL_TITLE = PatternFill("solid", fgColor="1A2B5E")
-FILL_SEC = PatternFill("solid", fgColor="DCE6F1")
-FILL_HDR = PatternFill("solid", fgColor="F2F2F2")
-FILL_CI = PatternFill("solid", fgColor="FCE4D6")
-FILL_CO = PatternFill("solid", fgColor="E2EFDA")
-FILL_SUM = PatternFill("solid", fgColor="D9D9D9")
+# ── 색 : 회사에서 쓰는 자금판 양식에서 그대로 뽑은 값 ──
+#    (다른 테스트용/업무수탁/KT/동교동_아이스리버_자금판_260626.xlsx)
+FILL_HEAD = PatternFill("solid", fgColor="2E75B6")   # 개요 헤더 (구분/내용/비고)
+FILL_LABEL = PatternFill("solid", fgColor="DEEBF7")  # 개요 라벨 열
+FILL_NAVY = PatternFill("solid", fgColor="1F4E79")   # 집행일 · 유보금 헤더
+FILL_TITLE = PatternFill("solid", fgColor="D9D9D9")  # Cash In / Cash Out 바
+FILL_SEC = None                                      # 섹션 제목은 색 없음
+FILL_HDR = PatternFill("solid", fgColor="F2F2F2")    # 열 헤더
+FILL_CI = PatternFill("solid", fgColor="FFF2CC")     # Cash In  (연노랑)
+FILL_CO = PatternFill("solid", fgColor="E2F0D9")     # Cash Out (연초록)
+FILL_SUM = PatternFill("solid", fgColor="F2F2F2")    # 합계
+FILL_WHITE = PatternFill("solid", fgColor="FFFFFF")
 
 _THIN = Side(style="thin", color="B0B0B0")
 _MED = Side(style="medium", color="808080")
@@ -90,6 +96,31 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
     fee_label = plan.get("fee_label", "인수수수료")
     ws.sheet_view.showGridLines = False
 
+    # 4단계(당일자금판 확인)에서 표에 써 넣은 비고·고친 금액
+    D = plan.get("_daily") or {}
+    NOTE = D.get("notes") or {}
+
+    def note(group, i, k=None):
+        v = NOTE.get(group)
+        if k is not None:
+            v = (v or [])[k] if v and k < len(v) else None
+        if not v or i >= len(v):
+            return None
+        return (str(v[i]).strip() or None)
+
+    CI_OV = D.get("ci") or []
+    CO_OV = D.get("co") or []
+    RES_OV = D.get("res") or []
+
+    def ov(lst, i, field=None):
+        """4단계에서 직접 써 넣은 값. 없으면 None(=원래 수식 그대로)."""
+        if i >= len(lst):
+            return None
+        v = lst[i]
+        if field and isinstance(v, dict):
+            return v.get(field)
+        return v if not isinstance(v, dict) else None
+
     # ── 열 폭 ──
     widths = {"A": 3, "B": 18, "C": 18, "D": 26, "E": 17, "F": 15,
               "G": 32, "H": 15, "I": 26, "J": 26, "K": 16}
@@ -107,9 +138,9 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
 
     # ── 1. 기초자산 개요 ──
     ws.merge_cells("B4:D4")
-    _set(ws, "B4", "1. 기초자산(대출) 개요", font=FONT_B, fill=FILL_SEC, align=LEFT)
+    _set(ws, "B4", "1. 기초자산(대출) 개요", font=FONT_B, align=LEFT)
     for c, t in [("B5", "구분"), ("C5", "내용"), ("D5", "비고")]:
-        _set(ws, c, t, font=FONT_B, fill=FILL_SEC)
+        _set(ws, c, t, font=FONT_W, fill=FILL_HEAD)
 
     left = [("차주명", plan.get("borrower"), "@"),
             ("대출금액(원)", plan.get("loan_amount"), FMT_WON),
@@ -122,9 +153,11 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
         r = 6 + i
         _set(ws, f"B{r}", name, font=FONT_B, fill=FILL_LABEL)
         _set(ws, f"C{r}", val, numfmt=fmt)
+        _set(ws, f"D{r}", note("asset", i), align=LEFT)
     _set(ws, "B13", "기타", font=FONT_B, fill=FILL_LABEL)
     ws.merge_cells("C13:D13")
-    _set(ws, "C13", "후순위 대여는 매 이자지급일에 차주에게 지급 받음", align=LEFT)
+    _set(ws, "C13", D.get("asset_etc") or "후순위 대여는 매 이자지급일에 차주에게 지급 받음",
+         align=LEFT)
     _box(ws, 2, 4, 4, 13)
 
     # ── 1-N. 사모사채 개요 ──
@@ -134,9 +167,9 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
         ws.merge_cells(f"{L}4:{N}4")
         _set(ws, f"{L}4",
              ("1-1. 1회 사모사채" if nb == 1 else "1-%d. 사모사채" % (k + 1)),
-             font=FONT_B, fill=FILL_SEC, align=LEFT)
+             font=FONT_B, align=LEFT)
         for c, t in [(f"{L}5", "구분"), (f"{V}5", "내용"), (f"{N}5", "비고")]:
-            _set(ws, c, t, font=FONT_B, fill=FILL_SEC)
+            _set(ws, c, t, font=FONT_W, fill=FILL_HEAD)
 
         if k == 0:
             itype, bname = plan.get("issue_type"), plan.get("bond_name")
@@ -161,25 +194,26 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
             r = 6 + i
             _set(ws, f"{L}{r}", name, font=FONT_B, fill=FILL_LABEL)
             _set(ws, f"{V}{r}", val, numfmt=fmt)
+            _set(ws, f"{N}{r}", note("bond", i, k), align=LEFT)
         _box(ws, c0, 4, c0 + 2, 13)
 
     # ── 2. 자금판 (SPC 기준) ──
     ws.merge_cells("B15:D15")
     _set(ws, "B15", "2. 자금판 (SPC 기준, 단위: 원)", font=FONT_B, align=LEFT)
-    _set(ws, "B16", "집행일", font=FONT_B, fill=FILL_LABEL)
+    _set(ws, "B16", "집행일", font=FONT_W, fill=FILL_NAVY)
     _set(ws, "C16", "=C8", numfmt=FMT_DATE)
     _box(ws, 2, 16, 3, 16)
 
     ws.merge_cells("B17:D17")
-    _set(ws, "B17", "Cash In", font=FONT_W, fill=FILL_TITLE)
+    _set(ws, "B17", "Cash In", font=FONT_BAR, fill=FILL_TITLE)
     ws.merge_cells("E17:K17")
-    _set(ws, "E17", "Cash Out", font=FONT_W, fill=FILL_TITLE)
+    _set(ws, "E17", "Cash Out", font=FONT_BAR, fill=FILL_TITLE)
     for c, t in [("B18", "내용"), ("C18", "금액"), ("D18", "지급인"),
                  ("E18", "내용"), ("F18", "금액(공급가)"), ("G18", "부가세"),
                  ("H18", "합계"), ("I18", "수취인"), ("J18", "수취계좌"), ("K18", "비고")]:
         _set(ws, c, t, font=FONT_B, fill=FILL_HDR)
 
-    # Cash In — 지급인(D)은 비워 둔다(직접 입력)
+    # Cash In — 4단계 표에서 금액을 직접 쳤으면 그 숫자를, 아니면 원래 수식을 쓴다
     bond_val_cols = [_L(BOND_COL[k] + 1) for k in range(nb)]
     issue_ref = "=" + "+".join("%s8" % c for c in bond_val_cols)
     wht_ref = ("=%sF%d" % (SH, refs["wht_first_row"])) if refs.get("wht_first_row") else None
@@ -190,42 +224,46 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
           ("후순위대여", wht_ref)]
     for i, (name, val) in enumerate(ci):
         r = 19 + i
+        typed = ov(CI_OV, i, "amount")
         _set(ws, f"B{r}", name)
-        _set(ws, f"C{r}", val, numfmt=FMT_WON)
-        _set(ws, f"D{r}", None)
+        _set(ws, f"C{r}", typed if typed is not None else val, numfmt=FMT_WON)
+        _set(ws, f"D{r}", ov(CI_OV, i, "payer") or None, align=LEFT)
 
-    # Cash Out — 19행은 비워 둔다(대출실행 자리)
-    def out(r, name, supply, vat, total, who, acc):
+    # Cash Out — 19행은 대출실행 자리
+    def out(r, i, name, supply, vat, total, who, acc):
+        s, v, t = ov(CO_OV, i, "supply"), ov(CO_OV, i, "vat"), ov(CO_OV, i, "total")
         _set(ws, f"E{r}", name)
-        _set(ws, f"F{r}", supply, numfmt=FMT_WON)
-        _set(ws, f"G{r}", vat, numfmt=FMT_WON)
-        _set(ws, f"H{r}", total, numfmt=FMT_WON)
-        _set(ws, f"I{r}", who)
+        _set(ws, f"F{r}", s if s is not None else supply, numfmt=FMT_WON)
+        _set(ws, f"G{r}", v if v is not None else vat, numfmt=FMT_WON)
+        _set(ws, f"H{r}", t if t is not None else total, numfmt=FMT_WON)
+        _set(ws, f"I{r}", who or None)
         _set(ws, f"J{r}", acc or None, align=LEFT)
-        _set(ws, f"K{r}", None)
-    for c in "EFGHIJK":
-        _set(ws, f"{c}19", None)
+        _set(ws, f"K{r}", note("co", i), align=LEFT)
+
+    out(19, 0, "대출실행", None, None, "=F19+G19",
+        plan.get("loan_recipient"), accounts.get("loan"))
 
     am_total = plan.get("am_total")
-    _set(ws, "E20", "자산관리수수료")
-    _set(ws, "H20", am_total, numfmt=FMT_WON)
-    _set(ws, "F20", "=ROUND(H20*100/110,0)" if am_total else None, numfmt=FMT_WON)
-    _set(ws, "G20", "=ROUND(H20*10/110,0)" if am_total else None, numfmt=FMT_WON)
-    _set(ws, "I20", plan.get("am_manager"))
-    _set(ws, "J20", accounts.get("am") or None, align=LEFT)
+    out(20, 1, "자산관리수수료",
+        "=ROUND(H20*100/110,0)" if am_total else None,
+        "=ROUND(H20*10/110,0)" if am_total else None,
+        am_total, plan.get("am_manager"), accounts.get("am"))
 
-    out(21, "회계법인수수료", plan.get("acc_supply"), "=F21*10%", "=F21+G21",
+    out(21, 2, "회계법인수수료", plan.get("acc_supply"), "=F21*10%", "=F21+G21",
         plan.get("acc_manager"), accounts.get("acc"))
-    out(22, "업무위탁수수료", plan.get("bt_supply"), "=F22*10%", "=F22+G22",
+    out(22, 3, "업무위탁수수료", plan.get("bt_supply"), "=F22*10%", "=F22+G22",
         plan.get("bt_manager"), accounts.get("bt"))
 
     uw_formula = "=" + "+".join("%s8*%s13" % (c, c) for c in bond_val_cols)
     uw_amount = plan.get("uw_fee_direct") or uw_formula
-    out(23, fee_label, uw_amount, 0, "=F23+G23", plan.get("uw_manager"), accounts.get("uw"))
+    out(23, 4, fee_label, uw_amount, 0, "=F23+G23",
+        plan.get("uw_manager"), accounts.get("uw"))
 
     for r in range(19, 24):
         _fill_row(ws, r, 2, 4, FILL_CI)
         _fill_row(ws, r, 5, 11, FILL_CO)
+    for r in (24, 25):
+        _fill_row(ws, r, 2, 11, FILL_WHITE)
 
     _set(ws, "B26", "합계", font=FONT_B)
     _set(ws, "C26", "=SUM(C19:C25)", font=FONT_B, numfmt=FMT_WON)
@@ -239,28 +277,28 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
 
     # ── 3. 당일 유보금 ──
     ws.merge_cells("B28:D28")
-    _set(ws, "B28", "3. 당일 유보금", font=FONT_B, fill=FILL_SEC, align=LEFT)
+    _set(ws, "B28", "3. 당일 유보금", font=FONT_B, align=LEFT)
     for c, t in [("B29", "내용"), ("C29", "금액"), ("D29", "비고")]:
-        _set(ws, c, t, font=FONT_B, fill=FILL_SEC)
-    _set(ws, "B30", "후순위대여금")
-    _set(ws, "C30", "=C23", numfmt=FMT_WON)
-    _set(ws, "D30", "매 이자기간 추가 수취")
-    _set(ws, "B31", "예비비")
-    _set(ws, "C31", plan.get("reserve"), numfmt=FMT_WON)
-    _set(ws, "D31", "등록·등기·이체수수료 등")
-    _set(ws, "B32", "지급 유보 이자")
+        _set(ws, c, t, font=FONT_W, fill=FILL_NAVY)
+
     hold = "=" + "+".join("%s%s%d" % (SH, c, refs["bond_first_row"])
                           for c in refs["bond_int_cols"][:nb])
-    _set(ws, "C32", hold, numfmt=FMT_WON)
-    _set(ws, "D32", "사모사채 후취 이자")
-
-    sum_r = 33
+    res = [("후순위대여금", "=C23", "매 이자기간 추가 수취"),
+           ("예비비", plan.get("reserve"), "등록·등기·이체수수료 등"),
+           ("지급 유보 이자", hold, "사모사채 후취 이자")]
     if refs.get("addfee_col"):
-        _set(ws, "B33", "추가자산관리수수료")
-        _set(ws, "C33", "=%s%s%d" % (SH, refs["addfee_col"], refs["bond_first_row"]),
-             numfmt=FMT_WON)
-        _set(ws, "D33", "기초자산 이자 − 사모사채 이자(첫 기간)")
-        sum_r = 34
+        res.append(("추가자산관리수수료",
+                    "=%s%s%d" % (SH, refs["addfee_col"], refs["bond_first_row"]),
+                    "기초자산 이자 − 사모사채 이자(첫 기간)"))
+    for i, (name, val, memo) in enumerate(res):
+        r = 30 + i
+        typed = ov(RES_OV, i)
+        _set(ws, f"B{r}", name)
+        _set(ws, f"C{r}", typed if typed is not None else val, numfmt=FMT_WON)
+        _set(ws, f"D{r}", note("res", i) or memo, align=LEFT)
+        _fill_row(ws, r, 2, 4, FILL_WHITE)
+
+    sum_r = 30 + len(res)
     _set(ws, f"B{sum_r}", "합계", font=FONT_B)
     _set(ws, f"C{sum_r}", f"=SUM(C30:C{sum_r - 1})", font=FONT_B, numfmt=FMT_WON)
     _set(ws, f"D{sum_r}", None)

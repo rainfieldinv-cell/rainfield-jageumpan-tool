@@ -1684,7 +1684,8 @@ def render_step_preview_spc(tab_key: str):
         )
         return
 
-    step2_ui.render(tab_key, plan)
+    # 4단계에서 표로 고친 값을 그대로 이어받는다(개요 금액·날짜·금리 등)
+    step2_ui.render(tab_key, daily_ui.apply_to_plan(plan, tab_key))
 
 
 
@@ -1721,6 +1722,9 @@ def render_step_excel_spc(tab_key: str):
     safe = re.sub(r'[\/:*?"<>|]', "", biz).replace(" ", "")
     yymmdd = date.today().strftime("%y%m%d")
 
+    # 4단계 표에서 고친 값·비고를 반영한 plan 을 쓴다
+    plan = daily_ui.apply_to_plan(plan, tab_key)
+
     nb = sched["nbond"]
     info = {
         "asset_title": (plan.get("spc_name") or "") + " 기초자산",
@@ -1731,17 +1735,21 @@ def render_step_excel_spc(tab_key: str):
     names = [plan.get("bond_name"), plan.get("bond_name2"), plan.get("bond_name3")]
     types = [plan.get("issue_type"), plan.get("issue_type2"), plan.get("issue_type3")]
     frates = [plan.get("uw_fee_rate"), plan.get("uw_fee_rate2"), plan.get("uw_fee_rate3")]
+    # 4단계 개요 표에 쓴 비고 → 이자 스케줄 정보블록의 비고 칸
+    asset_notes, bond_notes = daily_ui.sched_notes(tab_key)
+    info["asset_notes"] = asset_notes
     for k in range(nb):
         info["bonds"].append({
             "title": names[k] or ("1-%d회 사모사채" % (k + 1) if nb > 1 else "사모사채"),
             "issue_type": types[k], "fee_mode": "rate", "fee_rate": frates[k],
             "pay_text": "3개월 후취", "mat": plan.get("bond_maturity"),
+            "notes": bond_notes[k] if k < len(bond_notes) else [],
         })
 
     st.markdown("#### ■ 전체 자금판 (탭 2개)")
     st.caption("한 파일에 **① 당일자금판**, **② 이자 스케줄** 두 탭이 들어갑니다.")
     try:
-        bio = build_2tab(daily_ui.apply_to_plan(plan, tab_key), accounts, sched, info)
+        bio = build_2tab(plan, accounts, sched, info)
         st.download_button(
             "📥 전체 자금판 다운로드 (탭 2개)",
             data=bio.getvalue(), file_name=f"{safe}_자금판_{yymmdd}.xlsx",
@@ -1762,10 +1770,9 @@ def render_step_excel_spc(tab_key: str):
             "maturity": plan.get("bond_maturity"),
             "fee_mode": "rate", "fee_rate": frates[k],
             "pay_type": "post", "pay_text": "3개월 후취",
-            "bank": st.session_state.get(f"bank_{tab_key}_{k}", ""),
-            "account_no": st.session_state.get(f"acctno_{tab_key}_{k}", ""),
-            "holder": st.session_state.get(f"holder_{tab_key}_{k}", ""),
         }
+        # 계좌(은행명·계좌번호·예금주)·각주·비고는 4단계에서 넣은 값
+        m.update(daily_ui.bond_meta(tab_key, k))
         try:
             bb = build_bond_book(b, m)
             cols[k].download_button(

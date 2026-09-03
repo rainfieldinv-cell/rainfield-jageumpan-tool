@@ -113,13 +113,19 @@ def _fill_rng(ws, c1, r1, c2, r2, hexv, text=None):
 #   라벨 = base(2칸 병합) · 값 = base+2 · 비고 = base+3(2칸 병합)
 # ─────────────────────────────────────────────
 def _info_block(ws, label_col, val_col, note_col, title, rows):
+    """제목·비고 머리는 굵은 상자, 안쪽 줄은 모두 같은 점선으로.
+
+    (예전에는 라벨·값은 dashed, 비고는 dotted 라 줄이 서로 어긋나 보였고
+     비고 칸은 오른쪽 선이 없어 상자가 열려 있었다.)
+    """
     L, V, N = _L(label_col), _L(val_col), _L(note_col)
+    NE = _L(note_col + 1)
     ws.merge_cells(f"{L}2:{V}2")
     t = _set(ws, f"{L}2", title, bold=True)
-    t.border = Border(top=_MED, bottom=_MED, right=_MED)
-    ws.merge_cells(f"{N}2:{_L(note_col + 1)}2")
+    t.border = Border(top=_MED, bottom=_MED, left=_MED, right=_MED)
+    ws.merge_cells(f"{N}2:{NE}2")
     b = _set(ws, f"{N}2", "비고", bold=True)
-    b.border = Border(top=_MED, bottom=_MED, left=_MED)
+    b.border = Border(top=_MED, bottom=_MED, left=_MED, right=_MED)
 
     last = len(rows) - 1
     for i, r in enumerate(rows):
@@ -127,17 +133,17 @@ def _info_block(ws, label_col, val_col, note_col, title, rows):
         close = _MED if i == last else _DASH
         ws.merge_cells(f"{L}{row}:{_L(label_col + 1)}{row}")
         lc = _set(ws, f"{L}{row}", r["label"], bold=True)
-        lc.border = Border(top=_DASH, bottom=close)
+        lc.border = Border(top=_DASH, bottom=close, left=_MED, right=_DASH)
 
         vc = ws[f"{V}{row}"]
         vc.value = r.get("value")
         is_money = r.get("nf") == MONEY
         _set(ws, f"{V}{row}", nf=r.get("nf"), h="none" if is_money else "center")
-        vc.border = Border(top=_DASH, bottom=close, right=_MED)
+        vc.border = Border(top=_DASH, bottom=close, left=_DASH, right=_MED)
 
-        ws.merge_cells(f"{N}{row}:{_L(note_col + 1)}{row}")
+        ws.merge_cells(f"{N}{row}:{NE}{row}")
         nc = _set(ws, f"{N}{row}", r.get("note") or "", h="center")
-        nc.border = Border(top=_DOT, bottom=_MED if i == last else _DOT, left=_MED)
+        nc.border = Border(top=_DASH, bottom=close, left=_MED, right=_MED)
 
 
 # ─────────────────────────────────────────────
@@ -178,14 +184,18 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         m = rules[0].months if rules else 3
         return "%d개월 %s" % (m, "선취" if pay_type == "pre" else "후취")
 
+    def _note(lst, i):
+        return lst[i] if (lst and i < len(lst)) else None
+
+    an = info.get("asset_notes") or []
     _info_block(ws, 2, 4, 5, info.get("asset_title") or "기초자산", [
-        {"label": "대출실행일", "value": am["start"], "nf": DATEF},
-        {"label": "차주", "value": info.get("borrower") or ""},
-        {"label": "대출금액 (원)", "value": am["amount"], "nf": MONEY},
-        {"label": "대출금리", "value": am["rate"], "nf": RATE_INFO},
-        {"label": "참여수수료", "value": info.get("part_rate"), "nf": PCT2},
-        {"label": "이자지급일", "value": pay_text(am["pay_type"], am["rules"])},
-        {"label": "만기일", "value": am["mat"], "nf": DATEF},
+        {"label": "대출실행일", "value": am["start"], "nf": DATEF, "note": _note(an, 0)},
+        {"label": "차주", "value": info.get("borrower") or "", "note": _note(an, 1)},
+        {"label": "대출금액 (원)", "value": am["amount"], "nf": MONEY, "note": _note(an, 2)},
+        {"label": "대출금리", "value": am["rate"], "nf": RATE_INFO, "note": _note(an, 3)},
+        {"label": "참여수수료", "value": info.get("part_rate"), "nf": PCT2, "note": _note(an, 4)},
+        {"label": "이자지급일", "value": pay_text(am["pay_type"], am["rules"]), "note": _note(an, 5)},
+        {"label": "만기일", "value": am["mat"], "nf": DATEF, "note": _note(an, 6)},
     ])
 
     binfo = info.get("bonds") or []
@@ -195,16 +205,17 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         base = BOND_BASE[k]
         fee_mode = bi.get("fee_mode", "rate")
         fee_val = bi.get("fee_amount") if fee_mode == "amount" else bi.get("fee_rate")
+        bn = bi.get("notes") or []
         _info_block(ws, base, base + 2, base + 3,
                     bi.get("title") or bond_label(k + 1, nb), [
-            {"label": "사모사채 발행일", "value": b["start"], "nf": DATEF},
-            {"label": "발행 유형", "value": bi.get("issue_type") or ""},
-            {"label": "사모사채 발행금액(원)", "value": b["amount"], "nf": MONEY},
-            {"label": "사모사채 발행금리", "value": b["rate"], "nf": RATE_INFO},
+            {"label": "사모사채 발행일", "value": b["start"], "nf": DATEF, "note": _note(bn, 0)},
+            {"label": "발행 유형", "value": bi.get("issue_type") or "", "note": _note(bn, 1)},
+            {"label": "사모사채 발행금액(원)", "value": b["amount"], "nf": MONEY, "note": _note(bn, 2)},
+            {"label": "사모사채 발행금리", "value": b["rate"], "nf": RATE_INFO, "note": _note(bn, 3)},
             {"label": "사모사채 인수수수료(원)", "value": fee_val,
-             "nf": MONEY if fee_mode == "amount" else PCT2},
-            {"label": "이자지급일", "value": bi.get("pay_text") or ""},
-            {"label": "만기일", "value": bi.get("mat"), "nf": DATEF},
+             "nf": MONEY if fee_mode == "amount" else PCT2, "note": _note(bn, 4)},
+            {"label": "이자지급일", "value": bi.get("pay_text") or "", "note": _note(bn, 5)},
+            {"label": "만기일", "value": bi.get("mat"), "nf": DATEF, "note": _note(bn, 6)},
         ])
 
     # ── 지급날짜 축 ──
@@ -397,12 +408,25 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
             kw[side] = _MED
             cell.border = Border(**kw)
 
+    def hline(c1, c2, r, side):
+        for c in range(c1, c2 + 1):
+            rr, cc = _anchor_cell(r, c)
+            cell = ws.cell(row=rr, column=cc)
+            b = cell.border
+            kw = {"left": b.left, "right": b.right, "top": b.top, "bottom": b.bottom}
+            kw[side] = _MED
+            cell.border = Border(**kw)
+
     starts = [2, ASSET_BASE] + BOND_BASE[:nb]
     if use_fee:
         starts.append(addfee_col(nb))
     for c in starts:
         vline(c, "left"); vline(c - 1, "right")
     vline(lastc, "right")
+
+    # 표 전체의 위·아래도 굵게 — 기초자산 / 1·2·3회가 각각 상자로 보이게
+    hline(2, lastc, 12, "top")
+    hline(2, lastc, total_row, "bottom")
 
     return {"total_row": total_row, "row_of": row_of, "last_row": last_row,
             "asset_int_col": I, "bond_int_cols": [_L(seg_cols(BOND_BASE[k])["int"]) for k in range(nb)],

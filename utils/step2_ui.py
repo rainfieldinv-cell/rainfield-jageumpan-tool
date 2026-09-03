@@ -119,7 +119,7 @@ def _rules_editor(tab_key: str, seg: str, title: str, default_pay: str):
     """seg : 'asset' | 'bond0' | 'bond1' | 'bond2'"""
     st.markdown(f"**{title}**")
 
-    c1, c2 = st.columns([1, 2])
+    c1, c2, c3 = st.columns([1, 2, 1])
     pay_type = c1.selectbox(
         "선취/후취", ["pre", "post"],
         index=0 if default_pay == "pre" else 1,
@@ -132,8 +132,7 @@ def _rules_editor(tab_key: str, seg: str, title: str, default_pay: str):
         format_func=lambda v: BIZ_LABELS[v],
         key=_k(tab_key, seg, "biz"),
     )
-
-    nrule = st.number_input(
+    nrule = c3.number_input(
         "규칙 줄 수", min_value=1, max_value=3, value=1, step=1,
         key=_k(tab_key, seg, "nrule"),
         help="앞부분만 주기가 다른 계약이면 2줄 이상. 예) 처음 1개월 2회 → 그다음 3개월 만기까지",
