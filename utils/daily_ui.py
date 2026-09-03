@@ -145,13 +145,13 @@ def render(tab_key: str, plan: dict) -> dict:
     r[0].markdown("자산관리수수료  \n:gray[부가세 포함]")
     am_fee = won_input(r[1], " ", _k(tab_key, "am_fee"), plan.get("am_total"))
     am_man = _txt(r[2], " ", _k(tab_key, "am_man"), plan.get("am_manager"), "예: 레인필드투자자문")
-    am_acc = _txt(r[3], " ", _k(tab_key, "am_acc"), "", "예: (신한) 140-015-621024")
+    am_acc = _txt(r[3], " ", _k(tab_key, "am_acc"), "", "예: (신한) 000-000-000000")
 
     r = st.columns([1.3, 1.2, 1.3, 1.6])
     r[0].markdown("회계법인수수료  \n:gray[공급가·부가세 별도]")
     acc_fee = won_input(r[1], "  ", _k(tab_key, "acc_fee"), plan.get("acc_supply"))
     acc_man = _txt(r[2], "  ", _k(tab_key, "acc_man"), plan.get("acc_manager"), "예: 로엘회계법인")
-    acc_acc = _txt(r[3], "  ", _k(tab_key, "acc_acc"), "", "예: (우리) 1005-904-165822")
+    acc_acc = _txt(r[3], "  ", _k(tab_key, "acc_acc"), "", "예: (우리) 0000-000-000000")
 
     r = st.columns([1.3, 1.2, 1.3, 1.6])
     r[0].markdown("업무위탁수수료  \n:gray[공급가·부가세 별도]")
@@ -164,7 +164,7 @@ def render(tab_key: str, plan: dict) -> dict:
     uw_amt = sum(int((frates[k] or 0) * (amts[k] or 0)) for k in range(nb))
     r[1].markdown(":gray[%s 원]  \n:gray[발행금액 × 요율]" % fmt_won(uw_amt))
     uw_man = _txt(r[2], "    ", _k(tab_key, "uw_man"), plan.get("uw_manager"), "예: 청주저축은행")
-    uw_acc = _txt(r[3], "    ", _k(tab_key, "uw_acc"), "", "예: (저축) 405-01-13-2016625")
+    uw_acc = _txt(r[3], "    ", _k(tab_key, "uw_acc"), "", "예: (저축) 000-00-00-0000000")
 
     vat = lambda x: int(round(x * 0.1))
     out = pd.DataFrame([
