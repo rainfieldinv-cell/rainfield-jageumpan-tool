@@ -1,0 +1,8 @@
+streamlit
+pdfplumber
+PyMuPDF
+docx2pdf
+anthropic
+Pillow
+openpyxl
+holidays
