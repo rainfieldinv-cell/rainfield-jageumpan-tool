@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>자금판 자동화 | 레인필드투자자문</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- ===================== 상단 헤더 ===================== -->
+  <header class="app-header">
+    <div class="app-header__inner">
+      <div class="app-header__titles">
+        <h1 class="app-title">자금판 자동화 <span class="app-title__sub" id="mode-sub">기초자산 ↔ 사모사채</span></h1>
+        <p class="app-company">레인필드투자자문</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main is-two">
+    <!-- ===================== 상단 바 ===================== -->
+    <div class="topbar">
+      <p class="topbar__lead">
+        자금판은 하나입니다. 기초자산·사모사채를 넣으면, 받을 때만 <b>사채권자용</b>과 <b>전체용</b>으로 나뉘어 나옵니다.
+      </p>
+      <button type="button" class="btn-holiday" id="btn-holiday">📅 공휴일 관리</button>
+    </div>
+
+    <!-- ===================== 회차 선택 + 옵션 ===================== -->
+    <section class="round-select">
+      <h2 class="section-heading">사모사채 회차 선택</h2>
+      <div class="round-select__radios" role="radiogroup" aria-label="사모사채 회차 선택">
+        <label class="round-radio">
+          <input type="radio" name="round-count" value="1" checked />
+          <span>1회</span>
+        </label>
+        <label class="round-radio">
+          <input type="radio" name="round-count" value="2" />
+          <span>2회</span>
+        </label>
+        <label class="round-radio">
+          <input type="radio" name="round-count" value="3" />
+          <span>3회</span>
+        </label>
+      </div>
+      <p class="round-select__hint">
+        고른 회차 수만큼 사모사채 칸이 기초자산 오른쪽에 나란히 붙습니다(최대 3회).
+        사채권자용 다운로드 버튼도 회차 수만큼 켜집니다.
+      </p>
+
+      <!-- 추가자산관리수수료 : 딜에 따라 있기도 없기도 해서 켜고 끈다 -->
+      <div class="addfee-opt">
+        <label class="addfee-switch">
+          <input type="checkbox" id="uw-addfee-on" />
+          <span>추가자산관리수수료 열 넣기</span>
+        </label>
+        <p class="addfee-hint">
+          켜면 스케줄 표 <b>사모사채 바로 오른쪽</b>에 열이 하나 붙습니다(1회·2회 모두). 전체용 다운로드에만 들어갑니다.
+          금액은 <b>기초자산 이자 − 사모사채 이자</b>로 자동 계산되며,
+          원천세를 뺀 값을 써야 하는 딜이면 <b>칸을 직접 고쳐도</b> 됩니다.
+          (직접 고친 칸은 노란색, 비우면 다시 자동계산)
+        </p>
+      </div>
+
+      <!-- 주말·공휴일 처리 방식은 자산마다 다를 수 있어 각 칸에서 고른다. -->
+      <div class="cond-host cond-note" id="cond-uw">
+        <div class="cond__title">📌 주말·공휴일 처리 방식</div>
+        <div class="cond__guide">
+          이자기간 말일이 토·일이나 공휴일에 걸릴 때 어떻게 할지는
+          <b>자산마다 다를 수 있어서</b>, 아래 <b>기초자산 · 사모사채 각 칸의
+          “이자지급일”</b> 안에서 <b>따로따로</b> 고릅니다.
+          (예: 기초자산은 «말일 이동», 사모사채는 «말일 고정»)
+          각 칸의 <b>? 쓰는 법</b>을 누르면 세 가지 방식의 차이를 예시로 볼 수 있습니다.
+          여기서 고른 값은 <b>사채권자용 다운로드에도 똑같이</b> 적용됩니다.
+        </div>
+      </div>
+      <!-- 사채권자 전체 설정(예비). 각 칸에서 고른 값이 우선이라 화면에는 감춘다. -->
+      <div class="cond-host" id="cond-bond" hidden></div>
+    </section>
+
+    <!-- ============================================================
+         ① 입력 : 기초자산(Cash-in) + 사모사채(Cash-out)
+         여기에 넣은 사모사채 값이 아래 사채권자 자금판으로 그대로 흘러갑니다.
+         ============================================================ -->
+    <section class="stage">
+      <h2 class="section-heading">
+        ① 입력 <span class="stage-note">기초자산 · 사모사채 — 여기서만 입력하면 됩니다</span>
+      </h2>
+      <div class="uw-info" id="uw-info">
+        <!-- 기초자산 (Cash-in) -->
+        <div class="panel panel--asset">
+          <h3 class="panel-title">
+            <input type="text" class="title-input" data-field="title"
+                   placeholder="예: 부성2지구 브릿지 대출 기초자산" />
+            <span class="panel-tag">Cash-in · 차주 → SPC</span>
+          </h3>
+          <div class="panel-body">
+            <div class="field-grid field-grid--uw">
+              <div class="field-grid__head">
+                <span class="fg-label">항목</span><span class="fg-content">내용</span><span class="fg-note">비고</span>
+              </div>
+              <div class="field-row field-row--keydate">
+                <label class="fg-label">대출실행일 <span class="keydate-tag">계약서</span></label>
+                <div class="fg-content"><input type="date" data-field="loanDate" /></div>
+                <div class="fg-note"><input type="text" data-note="loanDate" placeholder="비고" /></div>
+              </div>
+              <div class="field-row">
+                <label class="fg-label">차주</label>
+                <div class="fg-content"><input type="text" data-field="borrower" placeholder="예: 더함도시개발㈜" /></div>
+                <div class="fg-note"><input type="text" data-note="borrower" placeholder="비고" /></div>
+              </div>
+              <div class="field-row">
+                <label class="fg-label">대출금액(원)</label>
+                <div class="fg-content"><div class="input-affix"><input type="text" data-field="loanAmount" inputmode="numeric" class="ta-right" placeholder="0" /><span class="affix">원</span></div></div>
+                <div class="fg-note"><input type="text" data-note="loanAmount" placeholder="비고" /></div>
+              </div>
+              <div class="field-row">
+                <label class="fg-label">대출금리</label>
+                <div class="fg-content"><div class="input-affix"><input type="text" data-field="loanRate" inputmode="decimal" class="ta-right" placeholder="예: 7" /><span class="affix">%</span></div></div>
+                <div class="fg-note"><input type="text" data-note="loanRate" placeholder="예: 고정금리(세전)" /></div>
+              </div>
+              <div class="field-row">
+                <label class="fg-label">참여수수료</label>
+                <div class="fg-content"><div class="input-affix"><input type="text" data-field="participationFee" inputmode="decimal" class="ta-right" placeholder="예: 5" /><span class="affix">%</span></div></div>
+                <div class="fg-note"><input type="text" data-note="participationFee" placeholder="비고" /></div>
+              </div>
+              <div class="field-row field-row--tall">
+                <label class="fg-label">이자지급일</label>
+                <div class="fg-content"><div class="pay-rules" data-payrules data-bizsel data-paydefault="pre"></div></div>
+                <div class="fg-note"><input type="text" data-note="payInfo" placeholder="예: 3개월 선취" /></div>
+              </div>
+              <div class="field-row field-row--keydate">
+                <label class="fg-label">만기일 <span class="keydate-tag">계약서</span></label>
+                <div class="fg-content"><input type="date" data-field="maturityDate" /></div>
+                <div class="fg-note"><input type="text" data-note="maturityDate" placeholder="비고" /></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 사모사채 패널(1개/2개)은 uw.js 가 여기에 추가 -->
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ② 이자지급 스케줄 : 지급날짜 축으로 좌우결합한 통합 표.
+         사채권자 자금판도 이 값으로 만들어집니다(다운로드할 때 사채권자 서식으로).
+         ============================================================ -->
+    <section class="stage">
+      <h2 class="section-heading">
+        ② 이자지급 스케줄 <span class="stage-note">기초자산 Cash-in ↔ 사모사채 Cash-out</span>
+      </h2>
+      <section class="uw-schedule">
+        <div class="schedule-head">
+          <h3 class="panel-title">▶ 이자지급 스케줄 (기초자산 Cash-in ↔ 사모사채 Cash-out)</h3>
+          <span class="schedule-unit">(단위 : 원)</span>
+        </div>
+        <div class="schedule-table-wrap">
+          <table class="schedule-table uw-table" id="uw-schedule-table">
+            <!-- thead/tbody 는 js/uw.js 가 회차에 맞춰 렌더링합니다. -->
+          </table>
+        </div>
+
+        <!-- 후순위대여 표 + 인수대금 납입 계좌를 좌우로 나란히 둔다 -->
+        <div class="side-pair">
+
+        <!-- 후순위대여 표 : 기초자산(Cash-in) 지급분의 원천세·지방세, 그 합이 후순위대여금액.
+             js/wht.js 가 채운다. -->
+        <div class="wht-block" data-wht id="uw-wht">
+          <div class="schedule-head">
+            <h3 class="panel-title">
+              <label class="wht-switch">
+                <input type="checkbox" data-wht-on checked />
+                <span>▶ 후순위대여</span>
+              </label>
+            </h3>
+            <div class="wht-rates">
+              <label>원천세율 <input type="text" data-wht-rate value="14" />%</label>
+              <label>지방세율 <input type="text" data-wht-local value="10" />%</label>
+            </div>
+          </div>
+          <p class="wht-hint">
+            기초자산(Cash-in)의 <b>이자금액만</b> 대상입니다(참여수수료는 들어가지 않습니다).
+            원천세 = 이자금액(세전) × 원천세율 · 지방세 = 원천세 × 지방세율 · 둘 다 <b>10원 단위 절사</b>.
+          </p>
+          <div class="schedule-table-wrap">
+            <table class="schedule-table wht-table">
+              <thead>
+                <tr>
+                  <th>이자지급일</th>
+                  <th>이자금액(세전)</th>
+                  <th>원천세</th>
+                  <th>지방세</th>
+                  <th>합계</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 사모사채 인수대금 납입 계좌 : 사채권자 다운로드에만 들어가는 항목.
+             회차 세트(각주 포함)를 js/app.js 가 여기에 렌더링한다. -->
+        <div class="acct-side">
+          <div class="schedule-head">
+            <h3 class="panel-title">▶ 사모사채 인수대금 납입 계좌</h3>
+            <span class="schedule-unit">사채권자 다운로드에만 들어감</span>
+          </div>
+          <!-- 회차가 여러 개면 탭으로 골라 본다(좁은 칸에 나란히 두면 계좌번호가 잘림) -->
+          <div class="acct-tabs" id="acct-tabs" role="tablist" aria-label="회차 선택"></div>
+          <div class="sets" id="sets">
+            <!-- 자바스크립트가 회차별로 이곳에 렌더링합니다. -->
+          </div>
+        </div>
+
+        </div><!-- /.side-pair -->
+      </section>
+    </section>
+
+    <!-- ===================== 하단 액션 (엑셀 다운로드) ===================== -->
+    <section class="actions">
+      <div class="dl-filename">
+        <label for="dl-filename">파일명</label>
+        <div class="input-affix">
+          <input type="text" id="dl-filename"
+                 placeholder="예: 부성2지구담보대출_자금판" />
+          <span class="affix">.xlsx</span>
+        </div>
+      </div>
+      <div class="dl-buttons">
+        <button type="button" class="btn btn--primary" id="btn-dl-1">사채권자 1회 다운로드</button>
+        <button type="button" class="btn btn--primary" id="btn-dl-2" disabled>사채권자 2회 다운로드</button>
+        <button type="button" class="btn btn--primary" id="btn-dl-3" disabled>사채권자 3회 다운로드</button>
+        <button type="button" class="btn btn--primary" id="btn-dl-all">전체 다운로드</button>
+      </div>
+      <p class="actions__note">
+        같은 내용을 서식만 달리해서 받습니다. <b>사채권자</b> 버튼은 사모사채만 회차별로 한 파일씩,
+        <b>전체</b> 버튼은 기초자산 + 사모사채를 한 파일로 내려받습니다.
+        세 파일 모두 스케줄 표에 실제 수식(예: <code>=EDATE(C15,3)</code>,
+        <code>=ROUNDDOWN($D$5*I15*F15/365,0)</code>, <code>=SUM</code>)이 들어가 있어
+        엑셀에서 발행금액·날짜를 고치면 이자금액 등이 자동으로 다시 계산됩니다.
+      </p>
+    </section>
+  </main>
+
+  <!-- ===================== 세트 템플릿 =====================
+       하나의 "회차 세트" = (감춘)발행 기본조건 + 계좌정보 + 이자지급 스케줄 표 + 후순위대여.
+       발행 기본조건 칸들은 ① 입력의 사모사채 패널에서 값을 받아오는 그릇이라 화면에는 감춰둔다.
+       {{ROUND}} 자리표시자는 renderBondSet()에서 회차 번호로 치환됩니다. -->
+  <template id="tpl-bond-set">
+    <div class="bond-set" data-round="{{ROUND}}">
+      <div class="bond-set__badge">{{ROUND}}회차</div>
+
+      <!-- (1) 발행 기본조건 : ① 입력에서 자동으로 채워지므로 화면에서는 감춘다 -->
+      <div class="bond-set__top">
+        <div class="panel panel--issue">
+          <h3 class="panel-title">발행 기본조건</h3>
+          <div class="panel-body">
+            <div class="field-grid">
+              <div class="field-grid__head">
+                <span class="fg-label">항목</span>
+                <span class="fg-content">내용</span>
+                <span class="fg-note">비고</span>
+              </div>
+
+              <!-- 사모사채 이름 (표 제목 역할) -->
+              <div class="field-row">
+                <label class="fg-label" for="f-bondName-{{ROUND}}">사모사채 이름</label>
+                <div class="fg-content">
+                  <input type="text" id="f-bondName-{{ROUND}}" data-field="bondName"
+                         placeholder="예: 부성2지구 담보대출 사모사채" />
+                </div>
+                <div class="fg-note">
+                  <input type="text" data-note="bondName" placeholder="비고" />
+                </div>
+              </div>
+
+              <!-- 1) 발행일 -->
+              <div class="field-row field-row--keydate">
+                <label class="fg-label" for="f-issueDate-{{ROUND}}">사모사채 발행일 <span class="keydate-tag">계약서</span></label>
+                <div class="fg-content">
+                  <input type="date" id="f-issueDate-{{ROUND}}" data-field="issueDate" />
+                </div>
+                <div class="fg-note">
+                  <input type="text" data-note="issueDate" placeholder="비고" />
+                </div>
+              </div>
+
+              <!-- 2) 발행 유형 -->
+              <div class="field-row">
+                <label class="fg-label" for="f-issueType-{{ROUND}}">발행 유형</label>
+                <div class="fg-content">
+                  <input type="text" id="f-issueType-{{ROUND}}" data-field="issueType"
+                         placeholder="예: 실물발행" />
+                </div>
+                <div class="fg-note">
+                  <input type="text" data-note="issueType" placeholder="예: 인수인: 청주저축은행" />
+                </div>
+              </div>
+
+              <!-- 3) 발행금액(원) : 천단위 콤마 -->
+              <div class="field-row">
+                <label class="fg-label" for="f-issueAmount-{{ROUND}}">사모사채 발행금액(원)</label>
+                <div class="fg-content">
+                  <div class="input-affix">
+                    <input type="text" id="f-issueAmount-{{ROUND}}" data-field="issueAmount"
+                           inputmode="numeric" class="ta-right" placeholder="0" />
+                    <span class="affix">원</span>
+                  </div>
+                </div>
+                <div class="fg-note">
+                  <input type="text" data-note="issueAmount" placeholder="비고" />
+                </div>
+              </div>
+
+              <!-- 4) 발행금리 : % 입력 (예: 7 = 7%) -->
+              <div class="field-row">
+                <label class="fg-label" for="f-issueRate-{{ROUND}}">사모사채 발행금리</label>
+                <div class="fg-content">
+                  <div class="input-affix">
+                    <input type="text" id="f-issueRate-{{ROUND}}" data-field="issueRate"
+                           inputmode="decimal" class="ta-right" placeholder="예: 7" />
+                    <span class="affix">%</span>
+                  </div>
+                </div>
+                <div class="fg-note">
+                  <input type="text" data-note="issueRate" placeholder="예: 고정금리(세전)" />
+                </div>
+              </div>
+
+              <!-- 5) 인수수수료(원) : 요율(%) 자동계산 또는 직접 금액 -->
+              <div class="field-row field-row--tall">
+                <label class="fg-label">사모사채 인수수수료(원)</label>
+                <div class="fg-content">
+                  <div class="fee-line">
+                    <div class="fee-modes" role="radiogroup" aria-label="인수수수료 입력방식">
+                      <label class="mini-radio">
+                        <input type="radio" name="uwFeeMode-{{ROUND}}" data-fee-mode value="rate" checked />
+                        <span>요율(%)</span>
+                      </label>
+                      <label class="mini-radio">
+                        <input type="radio" name="uwFeeMode-{{ROUND}}" data-fee-mode value="amount" />
+                        <span>직접 금액</span>
+                      </label>
+                    </div>
+                    <div class="fee-inputs">
+                      <div class="input-affix" data-fee-rate-wrap>
+                        <input type="text" data-fee-rate inputmode="decimal" class="ta-right"
+                               value="2.0" placeholder="예: 2.0" />
+                        <span class="affix">%</span>
+                      </div>
+                      <div class="input-affix" data-fee-amount-wrap hidden>
+                        <input type="text" data-fee-amount inputmode="numeric" class="ta-right"
+                               placeholder="0" />
+                        <span class="affix">원</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="fee-computed">
+                    계산된 인수수수료: <strong data-fee-result>0</strong> 원
+                  </p>
+                </div>
+                <div class="fg-note">
+                  <input type="text" data-note="uwFee" placeholder="예: 인수금액의 2.0%" />
+                </div>
+              </div>
+
+              <!-- 6) 이자지급일 : 이자지급 주기 규칙(선취/후취 + 여러 줄)
+                   data-bizsel : ① 입력에서 고른 주말·공휴일 처리 방식을 그대로 받아두는 칸 -->
+              <div class="field-row field-row--tall">
+                <label class="fg-label">이자지급일</label>
+                <div class="fg-content">
+                  <div class="pay-rules" data-payrules data-bizsel data-paydefault="post"></div>
+                </div>
+                <div class="fg-note">
+                  <input type="text" data-note="payInfo"
+                         placeholder="예: 3개월 해당월의 23일 / 영업일이 아닌 경우 익영업일" />
+                </div>
+              </div>
+
+              <!-- 7) 만기일 -->
+              <div class="field-row field-row--keydate">
+                <label class="fg-label" for="f-maturityDate-{{ROUND}}">만기일 <span class="keydate-tag">계약서</span></label>
+                <div class="fg-content">
+                  <input type="date" id="f-maturityDate-{{ROUND}}" data-field="maturityDate" />
+                </div>
+                <div class="fg-note">
+                  <input type="text" data-note="maturityDate" placeholder="비고" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 인수대금 납입 계좌 : 사채권자 자금판에만 있는 항목이라 여기서 입력한다 -->
+        <div class="panel panel--account">
+          <h3 class="panel-title">사모사채 인수대금 납입 계좌</h3>
+          <div class="panel-body">
+            <div class="acct-grid">
+              <label class="acct-label" for="f-bankName-{{ROUND}}">은행명</label>
+              <input type="text" id="f-bankName-{{ROUND}}" data-field="bankName" placeholder="예: 하나은행" />
+
+              <label class="acct-label" for="f-accountNo-{{ROUND}}">계좌번호</label>
+              <input type="text" id="f-accountNo-{{ROUND}}" data-field="accountNo"
+                     placeholder="예: 000-000000-00000" />
+
+              <label class="acct-label" for="f-accountHolder-{{ROUND}}">예금주</label>
+              <input type="text" id="f-accountHolder-{{ROUND}}" data-field="accountHolder"
+                     placeholder="예: 레인필드부성 주식회사" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- (2) 이자지급 스케줄 표 -->
+      <div class="bond-set__schedule">
+        <div class="schedule-head">
+          <h3 class="panel-title">▶ 사모사채 이자지급스케줄</h3>
+          <span class="schedule-unit">(단위 : 원)</span>
+        </div>
+        <div class="schedule-table-wrap">
+          <table class="schedule-table">
+            <thead>
+              <tr>
+                <th>구분</th>
+                <th>이자기간(초일)</th>
+                <th>이자기간(말일)</th>
+                <th data-th="payDate">이자지급일(후취)</th>
+                <th>이자계산일수</th>
+                <th>금리(연)</th>
+                <th>인출금액</th>
+                <th>이자금액(세전)</th>
+                <th>인수수수료</th>
+                <th>비고</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="schedule-empty">
+                <td colspan="10">발행일 · 발행금액 · 발행금리 · 지급주기(개월) · 만기일을 입력하면 스케줄이 자동 계산됩니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="schedule-footnote">
+          <input type="text" data-field="footnote"
+                 placeholder="* 각주 예: 기초자산 2025년 12월 26일 기표, 2026년 02월 09일 양수도 기준" />
+        </div>
+      </div>
+
+      <!-- 후순위대여 표는 사채권자 자금판에는 넣지 않는다.
+           (기초자산 기준의 후순위대여는 ③ 전체 자금판에만 있음) -->
+    </div>
+  </template>
+
+  <!-- ===================== 업무수탁: 사모사채 패널 템플릿 =====================
+       {{IDX}} = 1(1회) / 2(2회). uw.js 가 복제해 #uw-info 에 붙인다. -->
+  <template id="tpl-uw-bond">
+    <div class="panel panel--bond" data-bond="{{IDX}}">
+      <h3 class="panel-title">
+        <input type="text" class="title-input" data-field="title" placeholder="예: 1회 사모사채" />
+        <span class="panel-tag">Cash-out · SPC → 사채권자</span>
+      </h3>
+      <div class="panel-body">
+        <div class="field-grid field-grid--uw">
+          <div class="field-grid__head">
+            <span class="fg-label">항목</span><span class="fg-content">내용</span><span class="fg-note">비고</span>
+          </div>
+          <div class="field-row field-row--keydate">
+            <label class="fg-label">사모사채 발행일 <span class="keydate-tag">계약서</span></label>
+            <div class="fg-content"><input type="date" data-field="issueDate" /></div>
+            <div class="fg-note"><input type="text" data-note="issueDate" placeholder="비고" /></div>
+          </div>
+          <!-- 발행 유형 : 등록발행 / 실물발행 둘뿐이라 버튼으로 고른다.
+               고른 값은 아래 hidden 칸에 담겨서, 읽기·자동채움·엑셀은 지금까지와 똑같이 동작한다. -->
+          <div class="field-row">
+            <label class="fg-label">발행 유형</label>
+            <div class="fg-content">
+              <div class="seg" role="radiogroup" aria-label="발행 유형">
+                <label class="seg-btn">
+                  <input type="radio" name="issueType-uw{{IDX}}" data-issue-type value="등록발행" />
+                  <span>등록발행</span>
+                </label>
+                <label class="seg-btn">
+                  <input type="radio" name="issueType-uw{{IDX}}" data-issue-type value="실물발행" />
+                  <span>실물발행</span>
+                </label>
+              </div>
+              <input type="hidden" data-field="issueType" />
+            </div>
+            <div class="fg-note"><input type="text" data-note="issueType" placeholder="예: 인수인: 청주저축은행" /></div>
+          </div>
+          <div class="field-row">
+            <label class="fg-label">사모사채 발행금액(원)</label>
+            <div class="fg-content"><div class="input-affix"><input type="text" data-field="issueAmount" inputmode="numeric" class="ta-right" placeholder="0" /><span class="affix">원</span></div></div>
+            <div class="fg-note"><input type="text" data-note="issueAmount" placeholder="비고" /></div>
+          </div>
+          <div class="field-row">
+            <label class="fg-label">사모사채 발행금리</label>
+            <div class="fg-content"><div class="input-affix"><input type="text" data-field="issueRate" inputmode="decimal" class="ta-right" placeholder="예: 7" /><span class="affix">%</span></div></div>
+            <div class="fg-note"><input type="text" data-note="issueRate" placeholder="예: 고정금리(세전)" /></div>
+          </div>
+          <div class="field-row field-row--tall">
+            <label class="fg-label">사모사채 인수수수료(원)</label>
+            <div class="fg-content">
+              <div class="fee-line">
+                <div class="fee-modes" role="radiogroup" aria-label="인수수수료 입력방식">
+                  <label class="mini-radio"><input type="radio" name="uwFeeMode-uw{{IDX}}" data-fee-mode value="rate" checked /><span>요율</span></label>
+                  <label class="mini-radio"><input type="radio" name="uwFeeMode-uw{{IDX}}" data-fee-mode value="amount" /><span>직접 금액</span></label>
+                </div>
+                <div class="fee-inputs">
+                  <div class="input-affix" data-fee-rate-wrap><input type="text" data-fee-rate inputmode="decimal" class="ta-right" placeholder="예: 2.0" /><span class="affix">%</span></div>
+                  <div class="input-affix" data-fee-amount-wrap hidden><input type="text" data-fee-amount inputmode="numeric" class="ta-right" placeholder="0" /><span class="affix">원</span></div>
+                </div>
+              </div>
+              <p class="fee-hint">비우면 인수수수료 공란 · 요율은 %로 (예: 2.0)</p>
+            </div>
+            <div class="fg-note"><input type="text" data-note="uwFee" placeholder="예: 인수금액의 2.0%" /></div>
+          </div>
+          <div class="field-row field-row--tall">
+            <label class="fg-label">이자지급일</label>
+            <div class="fg-content"><div class="pay-rules" data-payrules data-bizsel data-paydefault="post"></div></div>
+            <div class="fg-note"><input type="text" data-note="payInfo" placeholder="예: 3개월 후취" /></div>
+          </div>
+          <div class="field-row field-row--keydate">
+            <label class="fg-label">만기일 <span class="keydate-tag">계약서</span></label>
+            <div class="fg-content"><input type="date" data-field="maturityDate" /></div>
+            <div class="fg-note"><input type="text" data-note="maturityDate" placeholder="비고" /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ===================== 라이브러리 & 스크립트 ===================== -->
+  <script src="vendor/exceljs.min.js"></script>
+  <script src="vendor/FileSaver.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/holidays_data.js"></script>
+  <script src="js/holidays.js"></script>
+  <script src="js/conditions.js"></script>
+  <script src="js/excel_styles.js"></script>
+  <script src="js/wht.js"></script>
+  <script src="js/schedule.js"></script>
+  <script src="js/excel.js"></script>
+  <script src="js/uw.js"></script>
+  <script src="js/excel_uw.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1158 @@
+/* =========================================================
+   자금판 자동화 - 사채권자 자금판 (레인필드투자자문)
+   기본 스타일 / 뼈대 레이아웃
+   회사 로고색(남색) = #1A2B5E 를 포인트 컬러로 사용
+   ========================================================= */
+
+:root {
+  --navy: #1A2B5E;
+  --navy-dark: #12204a;
+  --navy-tint: #eef1f8;
+  --line: #d9dde6;
+  --line-soft: #e8ebf1;
+  --text: #1f2430;
+  --text-soft: #5b6470;
+  --bg: #f4f6fa;
+  --white: #ffffff;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(18, 32, 74, 0.08), 0 4px 16px rgba(18, 32, 74, 0.06);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------- 헤더 ---------------- */
+.app-header {
+  background: var(--navy);
+  color: var(--white);
+}
+.app-header__inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 28px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+.app-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.app-title__sub {
+  font-weight: 500;
+  font-size: 15px;
+  padding: 3px 10px;
+  margin-left: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.app-company {
+  margin: 4px 0 0;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+/* ---------------- 본문 ---------------- */
+.app-main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 28px 60px;
+}
+/* 2회 선택 시 두 세트가 나란히 들어가도록 넓게 */
+.app-main.is-two {
+  max-width: min(1880px, 96vw);
+}
+
+.section-heading {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--navy);
+}
+
+/* ---------------- 자금판 종류(모드) 탭 ---------------- */
+.mode-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  margin-bottom: 22px;
+}
+.mode-tab {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-soft);
+  padding: 9px 20px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mode-tab:hover { color: var(--navy); }
+.mode-tab.is-active {
+  background: var(--navy);
+  color: var(--white);
+}
+.page[hidden] { display: none; }
+
+/* 상단 바: 모드탭 + 공휴일 버튼 */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.topbar .mode-tabs { margin-bottom: 0; }
+.btn-holiday {
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--navy);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.btn-holiday:hover { background: var(--navy-tint); }
+
+/* ---------------- 공휴일 관리 모달 ---------------- */
+.hol-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 32, 74, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+  z-index: 1000;
+  overflow-y: auto;
+}
+.hol-modal {
+  background: var(--white);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 560px;
+  box-shadow: 0 10px 40px rgba(18, 32, 74, 0.25);
+  padding: 20px 22px 18px;
+}
+.hol-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hol-modal__head h3 { margin: 0; font-size: 17px; color: var(--navy); }
+.hol-close {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--text-soft);
+}
+.hol-desc { font-size: 12.5px; color: var(--text-soft); margin: 8px 0 14px; }
+.hol-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.hol-add .hol-add-date { width: 150px; flex: 0 0 auto; }
+.hol-add .hol-add-name { flex: 1 1 auto; }
+.hol-add .hol-add-btn { flex: 0 0 auto; padding: 8px 16px; font-size: 13px; }
+.hol-list-wrap {
+  max-height: 46vh;
+  overflow-y: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+.hol-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.hol-table th {
+  position: sticky;
+  top: 0;
+  background: var(--navy-tint);
+  color: var(--navy);
+  font-weight: 700;
+  padding: 7px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.hol-table td { padding: 4px 8px; border-bottom: 1px dashed var(--line-soft); }
+.hol-table .hol-e-date { width: 140px; }
+.hol-del {
+  border: 1px solid #e0b4b4;
+  background: #fff;
+  color: #b23;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.hol-del:hover { background: #fbeaea; }
+.hol-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+.hol-reset {
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.hol-reset:hover { background: #f4f6fa; }
+.hol-count { font-size: 12px; color: var(--text-soft); }
+
+/* ---------------- 업무수탁: 상단 정보 블록 ---------------- */
+.uw-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+.uw-info.uw-info--two {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+@media (max-width: 1100px) {
+  .uw-info, .uw-info.uw-info--two { grid-template-columns: 1fr; }
+}
+.panel--asset .panel-title { background: #eaf1ea; color: #1f5133; }
+.panel-tag {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-soft);
+  margin-left: 6px;
+}
+
+/* ---------------- 업무수탁: 통합 스케줄 표 ---------------- */
+.uw-schedule { margin-top: 4px; }
+.uw-table thead th { font-size: 12px; }
+/* 지급날짜(구분 축) = 표 안쪽과 같은 톤의 연한 회색 + 남색 글씨 */
+.uw-table .col-date { background: #f2f2f2; color: var(--navy); }
+.uw-table .grp {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+/* 세그먼트별 색: 기초자산=초록, 사모 1-1회=남색, 사모 1-2회=보라 (그룹+하위열 통일) */
+.uw-table .grp-asset,
+.uw-table thead th.sub-asset { background: #2f6b45; }        /* 기초자산 초록 */
+.uw-table .grp-bond,
+.uw-table thead th.sub-bond0 { background: #1f4f8a; }        /* 사모 1-1회 파랑 */
+.uw-table .grp-bond2,
+.uw-table thead th.sub-bond1 { background: #1a4677; }        /* 사모 1-2회 살짝 더 진한 파랑 */
+.uw-table .grp-bond3,
+.uw-table thead th.sub-bond2 { background: #13355a; }        /* 사모 1-3회 더 진한 파랑 */
+
+/* 업무수탁 패널: 좁은 폭에 맞춘 field-grid + 제목 입력 */
+.field-grid--uw .field-grid__head,
+.field-grid--uw .field-row {
+  grid-template-columns: 116px 1fr 1fr;
+  gap: 8px;
+}
+.panel-title .title-input {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 120px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--navy);
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--white);
+}
+.panel--asset .panel-title .title-input { color: #1f5133; }
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 인수수수료 요율 힌트 */
+.fee-hint { margin: 6px 0 0; font-size: 11.5px; color: var(--text-soft); }
+
+/* ---------------- 이자지급 주기 규칙 편집기 ---------------- */
+.pay-rules {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #fbfcfe;
+}
+.pay-rules__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.pay-rules__head .pay-type { width: 78px; flex: 0 0 78px; }
+.pr-label { font-size: 12px; color: var(--text-soft); }
+
+/* 자산별 주말·공휴일 처리 방식 */
+.pr-biz {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.pr-biz .biz-mode {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+/* "? 쓰는 법" 버튼 + 펼쳐지는 안내문 */
+.pr-help-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 2px 9px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--navy);
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pr-help-btn:hover { background: var(--navy-tint); }
+.pr-help-btn.is-open { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+.pr-help {
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text);
+}
+.pr-help__q {
+  margin-top: 12px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.pr-help__q:first-child { margin-top: 0; }
+.pr-help__a { margin: 3px 0 0; color: var(--text-soft); }
+.pr-help__a b { color: var(--navy); }
+/* 예시 줄은 살짝 들여쓰고 배경을 깔아 구분 */
+.pr-help__eg {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 3px 8px;
+  border-left: 3px solid var(--line);
+  background: #fbfcfe;
+  color: var(--text-soft);
+}
+.pr-help__tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff6e0;
+  border: 1px solid #e6b800;
+  color: #7a5b00;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.rules-list { display: flex; flex-direction: column; gap: 6px; }
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+}
+.rule-seq {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--navy);
+  background: var(--navy-tint);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.rule-row .rule-n { width: 52px; flex: 0 0 52px; }
+.rule-row .rule-c { width: 46px; flex: 0 0 46px; }
+.rule-row .rule-mode { width: auto; flex: 0 0 auto; }
+/* 지급 기준일 (매월 며칠) — 비워두면 실행일 일자를 따라감 */
+.rule-anchor-wrap { display: inline-flex; align-items: center; gap: 4px; }
+.rule-row .rule-a { width: 46px; flex: 0 0 46px; }
+.rule-lbl { color: var(--text-soft); white-space: nowrap; }
+.rule-count-wrap { display: inline-flex; align-items: center; gap: 5px; }
+.rule-count-wrap[hidden] { display: none; }
+.rule-del {
+  border: none;
+  background: transparent;
+  color: #b23;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  margin-left: auto;
+}
+.btn-add-rule {
+  margin-top: 8px;
+  border: 1px solid var(--navy);
+  background: var(--white);
+  color: var(--navy);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-add-rule:hover { background: var(--navy-tint); }
+
+/* ---------------- 회차 선택 ---------------- */
+.round-select {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  margin-bottom: 22px;
+}
+.round-select__radios {
+  display: flex;
+  gap: 10px;
+}
+.round-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 20px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-soft);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.round-radio:hover { border-color: var(--navy); }
+.round-radio input { accent-color: var(--navy); width: 16px; height: 16px; }
+.round-radio:has(input:checked) {
+  border-color: var(--navy);
+  background: var(--navy-tint);
+  color: var(--navy);
+}
+.round-select__hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+/* 계산 조건 : 키워드(칩) 선택 + 설명 */
+.cond-host { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line-soft); }
+.cond { margin-bottom: 10px; }
+.cond__title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+.cond__hint { font-size: 11.5px; font-weight: 400; color: var(--text-soft); }
+/* 칩 없이 안내만 있는 경우(업무수탁 — 처리 방식을 자산별로 고름) */
+.cond-note .cond__guide { margin-bottom: 0; }
+
+/* 칩 위에 항상 보이는 안내 (처음 쓰는 사람용) */
+.cond__guide {
+  margin: -2px 0 9px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text-soft);
+}
+.cond__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cond-chip {
+  border: 1.5px solid var(--line);
+  background: var(--white);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.cond-chip:hover { border-color: var(--navy); color: var(--navy); }
+.cond-chip.is-active {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: var(--white);
+}
+.cond__desc {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-soft);
+  line-height: 1.55;
+  background: var(--navy-tint);
+  border-radius: 8px;
+  padding: 9px 12px;
+  min-height: 1em;
+}
+
+/* ---------------- 세트 컨테이너 ---------------- */
+.sets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+}
+.sets.sets--two {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+@media (max-width: 1200px) {
+  .sets.sets--two { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------------- 하나의 세트 ---------------- */
+.bond-set {
+  position: relative;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.bond-set__badge {
+  display: inline-block;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  margin-bottom: 16px;
+}
+.autofill-hint {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11.5px;
+  color: var(--navy);
+  background: var(--navy-tint);
+  padding: 3px 10px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.bond-set__top {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* ---------------- 패널(발행조건/계좌) ---------------- */
+.panel {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+  padding: 10px 14px;
+  background: var(--navy-tint);
+  border-bottom: 1px solid var(--line-soft);
+}
+.panel-body { padding: 14px; }
+
+/* 뼈대 단계용 자리표시자 */
+.placeholder {
+  color: var(--text-soft);
+  font-size: 13px;
+}
+.placeholder p { margin: 0 0 6px; }
+.placeholder__tag {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--navy);
+  background: var(--navy-tint);
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+/* ---------------- 입력 폼 공통 ---------------- */
+input[type="text"],
+input[type="date"],
+input[type="number"],
+select {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--white);
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+input:focus,
+select:focus {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 2px rgba(26, 43, 94, 0.12);
+}
+input::placeholder { color: #a6adba; }
+.ta-right { text-align: right; }
+
+/* 발행 기본조건 : [항목] [내용] [비고] 3열 그리드 */
+.field-grid { display: flex; flex-direction: column; gap: 0; }
+.field-grid__head,
+.field-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.field-grid__head {
+  padding: 0 0 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.field-row { padding: 7px 0; border-bottom: 1px dashed var(--line-soft); }
+/* 계약서에서 그대로 옮겨 적는 핵심 날짜(발행일/실행일·만기일) 강조 */
+.field-row--keydate {
+  background: #eef6ff;
+  border-radius: 6px;
+  padding: 8px;
+  border: 1px solid #cfe0f5;
+  margin: 2px 0;
+}
+.keydate-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #1666c4;
+  background: #d7e8fb;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.field-row:last-child { border-bottom: none; }
+.field-row--tall { align-items: start; }
+.fg-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.field-grid__head .fg-content,
+.field-grid__head .fg-note { font-weight: 700; }
+
+/* 접미사(원/%) 붙는 입력 */
+.input-affix {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--white);
+}
+.input-affix:focus-within {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 2px rgba(26, 43, 94, 0.12);
+}
+.input-affix input {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.input-affix input:focus { box-shadow: none; }
+.input-affix .affix {
+  padding: 0 10px;
+  font-size: 12.5px;
+  color: var(--text-soft);
+  background: var(--navy-tint);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+/* 인수수수료 모드 : 라디오 + 입력칸을 한 줄에 두어 비고 칸과 높이를 맞춘다 */
+.fee-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.fee-modes { display: flex; gap: 14px; flex: 0 0 auto; }
+.mini-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mini-radio input { accent-color: var(--navy); width: 14px; height: 14px; }
+.fee-inputs { flex: 1 1 auto; min-width: 0; }
+.fee-inputs > [hidden] { display: none; }
+.fee-computed {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--text-soft);
+}
+.fee-computed strong { color: var(--navy); font-size: 13.5px; }
+
+/* 이자지급일 */
+.pay-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pay-inputs { flex-wrap: nowrap; }
+.pay-inputs .pay-months { width: 64px; flex: 0 0 64px; }
+.pay-inputs .pay-type { width: 84px; flex: 0 0 84px; }
+.pay-unit {
+  font-size: 13px;
+  color: var(--text-soft);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.pay-preview {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+/* 계좌 블록 */
+.acct-grid {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 10px 12px;
+  align-items: center;
+}
+.acct-label { font-size: 13px; font-weight: 600; }
+
+/* ---------------- 스케줄 표 ---------------- */
+.schedule-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.schedule-unit {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.schedule-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.schedule-table th,
+.schedule-table td {
+  border: 1px solid var(--line-soft);
+  padding: 7px 10px;
+  text-align: center;
+}
+.schedule-table thead th {
+  background: var(--navy);
+  color: var(--white);
+  font-weight: 600;
+  border-color: var(--navy-dark);
+}
+.schedule-empty td {
+  color: var(--text-soft);
+  padding: 22px;
+  font-size: 13px;
+}
+
+/* 편집 가능한 스케줄 셀 */
+.schedule-table td { padding: 3px; }
+.schedule-table td:first-child,
+.schedule-table .schedule-total td { padding: 7px 10px; }
+.cell-input {
+  width: 100%;
+  min-width: 84px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 5px 6px;
+  font-size: 12.5px;
+  border-radius: 4px;
+}
+.cell-input:hover { border-color: var(--line); }
+.cell-input:focus {
+  border-color: var(--navy);
+  background: var(--white);
+  box-shadow: 0 0 0 2px rgba(26, 43, 94, 0.12);
+}
+.cell-input.ta-right { text-align: right; }
+.cell-input.ta-center { text-align: center; }
+.cell-input[type="date"] { min-width: 130px; }
+
+/* 합계행 */
+.schedule-total {
+  background: var(--navy-tint);
+  font-weight: 700;
+}
+.schedule-total td { color: var(--navy); }
+
+/* 날짜칸 옆 요일 표시 — 엑셀처럼 요일을 바로 볼 수 있게 */
+.date-cell { white-space: nowrap; }
+.date-cell .cell-input { width: auto; min-width: 0; }
+.dow {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--navy-tint);
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+/* 주말·공휴일은 빨강 (공휴일은 이름이 툴팁으로 뜸) */
+.dow--off { background: #ffe9e9; color: #c0392b; }
+
+/* 수동 지정된 날짜 셀 / 행 표시 */
+.cell-input.cell-manual {
+  background: #fff6e0;
+  border-color: #e6b800;
+  font-weight: 700;
+  color: #7a5b00;
+}
+.cell-input.cell-manual:focus {
+  border-color: #e6b800;
+  box-shadow: 0 0 0 2px rgba(230, 184, 0, 0.25);
+}
+tr.row-manual > td:first-child { box-shadow: inset 3px 0 0 #e6b800; }
+.note-cell { white-space: nowrap; }
+.row-revert {
+  margin-left: 6px;
+  border: 1px solid #e6b800;
+  background: #fffdf5;
+  color: #8a6a00;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.row-revert:hover { background: #fff2cc; }
+.axis-cell { white-space: nowrap; }
+.uw-table .row-revert { padding: 2px 6px; margin-left: 4px; }
+
+/* 각주 입력칸 */
+.schedule-footnote { margin-top: 10px; }
+.schedule-footnote input {
+  font-size: 12.5px;
+  color: var(--text-soft);
+  border-style: dashed;
+}
+
+/* ---------------- 추가자산관리수수료 켜기/끄기 ---------------- */
+.addfee-opt { margin-top: 12px; }
+.addfee-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.addfee-switch input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--navy); }
+.addfee-hint { margin: 6px 0 0; font-size: 11.5px; line-height: 1.65; color: var(--text-soft); }
+.addfee-hint b { color: var(--navy); }
+/* 표 헤더의 추가자산관리수수료 열 — 연보라(바탕이 연해 글자는 남색) */
+.uw-table .grp-addfee,
+.uw-table thead th.sub-addfee { background: #ccc0da; color: var(--navy); }
+
+/* ---------------- 원천세 표 ---------------- */
+.wht-block { margin-top: 22px; }
+.wht-block .schedule-head { margin-bottom: 6px; }
+
+/* 제목 자리의 켜기/끄기 스위치 */
+.wht-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+.wht-switch input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--navy); }
+
+/* 세율 입력 (원천세율 / 지방세율) */
+.wht-rates {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.wht-rates label { display: inline-flex; align-items: center; gap: 5px; }
+.wht-rates input {
+  width: 52px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 12px;
+  text-align: right;
+  color: var(--navy);
+  font-weight: 700;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--white);
+}
+
+.wht-hint { margin: 0 0 8px; font-size: 11.5px; color: var(--text-soft); }
+.wht-hint b { color: var(--navy); }
+
+/* 끈 상태: 제목만 남기고 흐리게 */
+.wht-block.is-off .panel-title { opacity: 0.55; }
+
+/* 원천세 표는 5열뿐이라 폭을 과하게 늘리지 않는다 */
+.wht-table { max-width: 760px; }
+.wht-table td { padding: 6px 10px; }
+.wht-label {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--navy-tint);
+  color: var(--navy);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+/* ---------------- 하단 액션 ---------------- */
+.actions {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.btn {
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 28px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.btn--primary {
+  background: var(--navy);
+  color: var(--white);
+}
+.btn--primary:hover { background: var(--navy-dark); }
+.dl-filename {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dl-filename label { font-size: 13px; font-weight: 600; }
+.dl-filename .input-affix { width: 420px; max-width: 90vw; }
+.dl-buttons { display: flex; gap: 10px; }
+.btn:disabled { background: #b9c0d0; cursor: not-allowed; }
+.actions__note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-soft);
+  max-width: 760px;
+}
+.actions__note code {
+  background: var(--navy-tint);
+  color: var(--navy);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ================================================================
+   합친 화면 (사채권자 + 업무수탁사용 한 페이지)
+   ================================================================ */
+
+/* 자금판(표)은 화면에 하나만 둔다.
+   회차 세트는 사채권자 자금판을 만들기 위한 그릇이라, 실제로 입력해야 하는
+   '인수대금 납입 계좌'와 '각주'만 남기고 발행 기본조건·스케줄 표는 감춘다. */
+.bond-set .panel--issue,
+.bond-set .bond-set__schedule .schedule-head,
+.bond-set .bond-set__schedule .schedule-table-wrap { display: none; }
+.bond-set__top { margin-bottom: 0; }
+.bond-set .schedule-footnote { margin-top: 12px; }
+
+/* 단계 구분 (① 입력 / ② 사채권자 / ③ 전체) */
+.stage { margin-bottom: 30px; }
+.stage .section-heading {
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--navy);
+}
+.stage-note {
+  margin-left: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-soft);
+}
+
+/* 상단 바 안내문 */
+.topbar__lead {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+.topbar__lead b { color: var(--navy); }
+
+/* 다운로드 버튼 3개 */
+.dl-buttons { flex-wrap: wrap; }
+
+/* 후순위대여 표 + 인수대금 납입 계좌를 좌우로 나란히 */
+.side-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .side-pair { grid-template-columns: minmax(0, 1fr); }
+}
+/* 계좌 블록은 후순위대여 블록과 똑같은 여백을 줘서 두 제목 높이를 맞춘다
+   (.wht-block 과 같은 margin-top / .schedule-head margin-bottom) */
+.acct-side { margin-top: 22px; }
+.acct-side .schedule-head { margin-bottom: 6px; }
+
+/* 계좌는 회차가 2개여도 위아래로 쌓아 좁은 칸에서도 읽히게 */
+.acct-side .sets, .acct-side .sets.sets--two { grid-template-columns: minmax(0, 1fr); }
+/* 바깥에 제목을 달았으니 패널 안의 같은 제목은 감춘다 */
+.acct-side .panel--account > .panel-title { display: none; }
+
+/* 발행 유형 선택 버튼 (등록발행 / 실물발행) */
+.seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  background: #f4f6fa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.seg-btn { position: relative; cursor: pointer; }
+.seg-btn input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.seg-btn span {
+  display: block;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+  border-radius: 6px;
+  transition: all 0.12s ease;
+}
+.seg-btn:hover span { color: var(--navy); }
+.seg-btn input:checked + span {
+  background: var(--navy);
+  color: var(--white);
+}
+.seg-btn input:focus-visible + span { outline: 2px solid var(--navy); outline-offset: 1px; }
+
+/* 사모사채 3회 : 입력 패널 4칸 / 계좌 세트 3칸 */
+.uw-info.uw-info--three { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1400px) { .uw-info.uw-info--three { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .uw-info.uw-info--three { grid-template-columns: minmax(0, 1fr); } }
+.sets.sets--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1200px) { .sets.sets--three { grid-template-columns: minmax(0, 1fr); } }
+
+/* 화면 표에서도 기초자산 / 사모사채 각 회차를 굵은 세로선으로 구분한다.
+   (엑셀 전체 다운로드의 세그먼트 구분선과 같은 의미)
+   세그먼트는 7열씩 고정이라 열 번호로 경계를 짚는다.
+     본문·합계행 : 1=지급날짜, 2~8=기초자산, 9~15=1회, 16~22=2회, 23~29=3회, 30=추가수수료
+     아래 헤더행 : 지급날짜(th rowspan)가 없어 한 칸씩 앞당겨진다. */
+.uw-table tbody td:nth-child(2),
+.uw-table tbody td:nth-child(9),
+.uw-table tbody td:nth-child(16),
+.uw-table tbody td:nth-child(23),
+.uw-table tbody td:nth-child(30),
+.uw-table thead tr:nth-child(2) th:nth-child(1),
+.uw-table thead tr:nth-child(2) th:nth-child(8),
+.uw-table thead tr:nth-child(2) th:nth-child(15),
+.uw-table thead tr:nth-child(2) th:nth-child(22),
+.uw-table thead tr:nth-child(2) th:nth-child(29),
+.uw-table thead tr:nth-child(1) th.grp { border-left: 2px solid var(--navy); }
+/* 표 오른쪽 끝도 같은 굵기로 닫는다 */
+.uw-table tbody tr > td:last-child,
+.uw-table thead tr > th:last-child { border-right: 2px solid var(--navy); }
+
+/* 인수대금 납입 계좌 : 회차 탭 (좁은 칸이라 나란히 두지 않고 골라서 본다) */
+.acct-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 10px;
+  background: #f4f6fa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.acct-tabs[hidden] { display: none; }
+.acct-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-soft);
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.acct-tab:hover { color: var(--navy); }
+.acct-tab.is-active { background: var(--navy); color: var(--white); }
+/* 고른 회차 하나만 보인다 (나머지는 계산용으로 DOM 에 남아있음) */
+.acct-side .sets, .acct-side .sets.sets--two, .acct-side .sets.sets--three {
+  grid-template-columns: minmax(0, 1fr);
+}
+.acct-side .bond-set[hidden] { display: none; }
