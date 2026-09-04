@@ -114,12 +114,12 @@ def _pct_input(col, label, key, default=None, help=None):
 
 # ─────────────────────────────────────────────
 # 개요 표 — 엑셀 «이자 스케줄» 위쪽 정보블록과 같은 줄 구성
-#   맨 윗줄 '제목' 은 그 블록의 제목칸,
-#   나머지 7줄이 정보블록의 7줄과 하나씩 짝을 이룬다.
+#   엑셀에서 '제목' 은 표 맨 위 제목칸(라벨·값 열에 걸친 띠)이지
+#   구분 열의 한 항목이 아니다. 그래서 화면에서도 표 위에 따로 둔다.
+#   아래 7줄이 정보블록의 7줄과 하나씩 짝을 이룬다.
 #   '이자지급일' 은 아래 규칙에서 자동으로 채워지고 직접 고칠 수도 있다.
 # ─────────────────────────────────────────────
 ASSET_INFO = [
-    ("제목", "title", "text"),
     ("대출실행일", "start", "date"),
     ("차주", "borrower", "text"),
     ("대출금액(원)", "amount", "won"),
@@ -130,7 +130,6 @@ ASSET_INFO = [
 ]
 
 BOND_INFO = [
-    ("제목", "title", "text"),
     ("사모사채 발행일", "start", "date"),
     ("발행 유형", "issue_type", "text"),
     ("사모사채 발행금액(원)", "amount", "won"),
@@ -198,7 +197,17 @@ def _pay_text_auto(tab_key, seg, default_pay):
 
 
 def _info_editor(tab_key, seg, spec, defaults, autotext):
-    """구분 / 내용 / 비고 표 하나. (고친 값, 비고 7줄) 을 돌려준다."""
+    """엑셀 정보블록 하나 — 맨 위 제목칸 + (구분 / 내용 / 비고) 표.
+
+    돌려주는 것 : (고친 값 dict[title 포함], 비고 7줄)
+    """
+    # ── 제목칸 : 엑셀에서 표 맨 위에 걸리는 띠. 표 안의 항목이 아니다 ──
+    tkey = _k(tab_key, seg, "title")
+    if tkey not in st.session_state:
+        st.session_state[tkey] = defaults.get("title") or ""
+    st.text_input("제목 (엑셀 표 맨 위 칸)", key=tkey,
+                  placeholder="예: 아이스리버 주식회사 기초자산")
+
     sk = _k(tab_key, seg, "info")
     sig = repr([defaults.get(f) for _, f, _ in spec])
     rows = st.session_state.get(sk)
@@ -230,10 +239,10 @@ def _info_editor(tab_key, seg, spec, defaults, autotext):
     rows = ed.to_dict("records")
     st.session_state[sk] = rows
 
-    vals = {}
+    vals = {"title": (st.session_state.get(tkey) or "").strip() or None}
     for i, (_n, field, kind) in enumerate(spec):
         vals[field] = _READ[kind](rows[i].get("내용"))
-    notes = [(str(r.get("비고") or "").strip() or None) for r in rows[1:]]
+    notes = [(str(r.get("비고") or "").strip() or None) for r in rows]
     return vals, notes
 
 
