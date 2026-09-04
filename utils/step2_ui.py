@@ -113,6 +113,125 @@ def _pct_input(col, label, key, default=None, help=None):
 
 
 # ─────────────────────────────────────────────
+# 개요 표 — 엑셀 «이자 스케줄» 위쪽 정보블록과 같은 줄 구성
+#   맨 윗줄 '제목' 은 그 블록의 제목칸,
+#   나머지 7줄이 정보블록의 7줄과 하나씩 짝을 이룬다.
+#   '이자지급일' 은 아래 규칙에서 자동으로 채워지고 직접 고칠 수도 있다.
+# ─────────────────────────────────────────────
+ASSET_INFO = [
+    ("제목", "title", "text"),
+    ("대출실행일", "start", "date"),
+    ("차주", "borrower", "text"),
+    ("대출금액(원)", "amount", "won"),
+    ("대출금리", "rate", "pct"),
+    ("참여수수료", "part_rate", "pct"),
+    ("이자지급일", "pay_text", "auto"),
+    ("만기일", "mat", "date"),
+]
+
+BOND_INFO = [
+    ("제목", "title", "text"),
+    ("사모사채 발행일", "start", "date"),
+    ("발행 유형", "issue_type", "text"),
+    ("사모사채 발행금액(원)", "amount", "won"),
+    ("사모사채 발행금리", "rate", "pct"),
+    ("사모사채 인수수수료(원)", "fee_rate", "pct"),
+    ("이자지급일", "pay_text", "auto"),
+    ("만기일", "mat", "date"),
+]
+
+
+def _fmt_pct_frac(v):
+    """0.07 → '7%'."""
+    if v in (None, ""):
+        return ""
+    try:
+        return ("%g" % round(float(v) * 100, 6)) + "%"
+    except (TypeError, ValueError):
+        return ""
+
+
+def _read_pct_frac(t):
+    v = _read_pct(t)
+    return None if v is None else v / 100.0
+
+
+def _fmt_date(d):
+    return d.strftime("%Y-%m-%d") if isinstance(d, date) else str(d or "")
+
+
+def _read_date(t):
+    if isinstance(t, date):
+        return t
+    s = re.sub(r"[^0-9]", "", str(t or ""))
+    if len(s) != 8:
+        return None
+    try:
+        return date(int(s[:4]), int(s[4:6]), int(s[6:]))
+    except ValueError:
+        return None
+
+
+_FMT = {"won": _fmt_won, "pct": _fmt_pct_frac, "date": _fmt_date,
+        "text": lambda v: "" if v is None else str(v),
+        "auto": lambda v: "" if v is None else str(v)}
+_READ = {"won": _read_won, "pct": _read_pct_frac, "date": _read_date,
+         "text": lambda t: (str(t).strip() or None),
+         "auto": lambda t: (str(t).strip() or None)}
+
+
+def _pay_text_auto(tab_key, seg, default_pay):
+    """아래 규칙에서 '3개월 선취' 같은 글자를 만든다."""
+    pt = st.session_state.get(_k(tab_key, seg, "paytype"), default_pay)
+    m = st.session_state.get(_k(tab_key, seg, "m", 0), 3)
+    try:
+        m = int(m or 3)
+    except (TypeError, ValueError):
+        m = 3
+    return "%d개월 %s" % (m, "선취" if pt == "pre" else "후취")
+
+
+def _info_editor(tab_key, seg, spec, defaults, autotext):
+    """구분 / 내용 / 비고 표 하나. (고친 값, 비고 7줄) 을 돌려준다."""
+    sk = _k(tab_key, seg, "info")
+    sig = repr([defaults.get(f) for _, f, _ in spec])
+    rows = st.session_state.get(sk)
+    if rows is None or st.session_state.get(sk + "_sig") != sig:
+        old = rows or []
+        rows = [{"구분": name,
+                 "내용": _FMT[kind](autotext if kind == "auto" else defaults.get(field)),
+                 "비고": (old[i]["비고"] if i < len(old) else "")}
+                for i, (name, field, kind) in enumerate(spec)]
+        st.session_state[sk + "_sig"] = sig
+        st.session_state.pop(_k(tab_key, seg, "infotbl"), None)
+
+    # 이자지급일 줄 — 아래 규칙을 바꾸면 따라 바뀐다(직접 고쳤으면 그대로 둔다)
+    prev = st.session_state.get(sk + "_auto")
+    for i, (_n, _f, kind) in enumerate(spec):
+        if kind == "auto" and rows[i]["내용"] in ("", None, prev):
+            rows[i]["내용"] = autotext
+    st.session_state[sk + "_auto"] = autotext
+
+    ed = st.data_editor(
+        pd.DataFrame(rows), key=_k(tab_key, seg, "infotbl"),
+        hide_index=True, width="stretch",
+        column_config={
+            "구분": st.column_config.TextColumn("구분", disabled=True, width="medium"),
+            "내용": st.column_config.TextColumn("내용", width="large"),
+            "비고": st.column_config.TextColumn("비고", width="large"),
+        },
+    )
+    rows = ed.to_dict("records")
+    st.session_state[sk] = rows
+
+    vals = {}
+    for i, (_n, field, kind) in enumerate(spec):
+        vals[field] = _READ[kind](rows[i].get("내용"))
+    notes = [(str(r.get("비고") or "").strip() or None) for r in rows[1:]]
+    return vals, notes
+
+
+# ─────────────────────────────────────────────
 # 이자지급 규칙 편집기 (한 자산)
 # ─────────────────────────────────────────────
 def _rules_editor(tab_key: str, seg: str, title: str, default_pay: str):
@@ -253,22 +372,27 @@ def render(tab_key: str, plan: dict):
 
     # ── 기초자산 ──
     st.markdown("### 기초자산 (Cash-in)")
-    a1, a2, a3, a4 = st.columns(4)
-    loan_amount = _won_input(a1, "대출금액(원)", _k(tab_key, "asset", "amt"),
-                             plan.get("loan_amount"))
-    loan_rate = _pct_input(a2, "대출금리(%)", _k(tab_key, "asset", "rate"),
-                           (plan.get("loan_rate") or 0) * 100)
-    loan_date = a3.date_input("대출실행일", value=plan.get("loan_date") or date.today(),
-                              key=_k(tab_key, "asset", "start"))
-    loan_mat = a4.date_input("만기일", value=plan.get("loan_maturity") or date.today(),
-                             key=_k(tab_key, "asset", "mat"))
+    st.caption("엑셀 «이자 스케줄» 맨 위 표와 같은 자리입니다. **칸을 눌러 그 자리에서 고치세요.** "
+               "비고도 엑셀에 그대로 들어갑니다.")
+    a_vals, a_notes = _info_editor(
+        tab_key, "asset", ASSET_INFO,
+        {"title": (plan.get("spc_name") or "") + " 기초자산",
+         "start": plan.get("loan_date"), "borrower": plan.get("borrower"),
+         "amount": plan.get("loan_amount"), "rate": plan.get("loan_rate"),
+         "part_rate": plan.get("part_rate"), "mat": plan.get("loan_maturity")},
+        _pay_text_auto(tab_key, "asset", "pre"))
+    loan_amount = a_vals.get("amount") or 0
+    loan_rate = a_vals.get("rate") or 0.0          # 0.10 처럼 소수
+    loan_date = a_vals.get("start") or date.today()
+    loan_mat = a_vals.get("mat") or date.today()
+
     a_pay, a_biz, a_rules = _rules_editor(tab_key, "asset", "이자지급일", "pre")
 
-    a_auto = make_schedule(loan_date, loan_mat, loan_amount, loan_rate / 100.0,
+    a_auto = make_schedule(loan_date, loan_mat, loan_amount, loan_rate,
                            a_rules, a_pay, None if a_biz == "none" else a_biz)
     a_edit = _editor("기초자산", a_auto, _k(tab_key, "asset", "tbl"))
     a_ov = _overrides_from_edit(a_edit, a_auto)
-    asset = make_schedule(loan_date, loan_mat, loan_amount, loan_rate / 100.0,
+    asset = make_schedule(loan_date, loan_mat, loan_amount, loan_rate,
                           a_rules, a_pay, None if a_biz == "none" else a_biz, a_ov)
     st.caption("합계 %s일 · 이자 %s원%s" % (
         format(sum(p.days for p in asset), ","), format(sum(p.interest for p in asset), ","),
@@ -277,33 +401,46 @@ def render(tab_key: str, plan: dict):
 
     # ── 사모사채 ──
     bonds = []
+    binfo = []
     for k in range(int(nbond)):
         st.divider()
         st.markdown(f"### 사모사채 {'1-%d회' % (k + 1) if nbond > 1 else ''} (Cash-out)")
         # 회차별 기본값 : 1회차는 issue_amount, 2·3회차는 issue_amount2/3
         suffix = "" if k == 0 else str(k + 1)
-        amt_def = plan.get("issue_amount" + suffix)
-        rate_def = plan.get("issue_rate" + suffix)
-        b1, b2, b3, b4 = st.columns(4)
-        b_amt = _won_input(b1, "발행금액(원)", _k(tab_key, "bond", k, "amt"), amt_def)
-        b_rate = _pct_input(b2, "발행금리(%)", _k(tab_key, "bond", k, "rate"),
-                            (rate_def or 0) * 100)
-        b_start = b3.date_input("발행일", value=plan.get("issue_date") or date.today(),
-                                key=_k(tab_key, "bond", k, "start"))
-        b_mat = b4.date_input("만기일", value=plan.get("bond_maturity") or date.today(),
-                              key=_k(tab_key, "bond", k, "mat"))
-        p_pay, p_biz, p_rules = _rules_editor(tab_key, f"bond{k}", "이자지급일", "post")
+        seg = "bond%d" % k
+        b_vals, b_notes = _info_editor(
+            tab_key, seg, BOND_INFO,
+            {"title": plan.get("bond_name" + suffix)
+                      or ("1-%d회 사모사채" % (k + 1) if nbond > 1 else "사모사채"),
+             "start": plan.get("issue_date"),
+             "issue_type": plan.get("issue_type" + suffix),
+             "amount": plan.get("issue_amount" + suffix),
+             "rate": plan.get("issue_rate" + suffix),
+             "fee_rate": plan.get("uw_fee_rate" + suffix),
+             "mat": plan.get("bond_maturity")},
+            _pay_text_auto(tab_key, seg, "post"))
+        b_amt = b_vals.get("amount") or 0
+        b_rate = b_vals.get("rate") or 0.0
+        b_start = b_vals.get("start") or date.today()
+        b_mat = b_vals.get("mat") or date.today()
 
-        b_auto = make_schedule(b_start, b_mat, b_amt, b_rate / 100.0, p_rules,
+        p_pay, p_biz, p_rules = _rules_editor(tab_key, seg, "이자지급일", "post")
+
+        b_auto = make_schedule(b_start, b_mat, b_amt, b_rate, p_rules,
                                p_pay, None if p_biz == "none" else p_biz)
         b_edit = _editor(f"사모사채{k}", b_auto, _k(tab_key, "bond", k, "tbl"))
         b_ov = _overrides_from_edit(b_edit, b_auto)
-        b_per = make_schedule(b_start, b_mat, b_amt, b_rate / 100.0, p_rules,
+        b_per = make_schedule(b_start, b_mat, b_amt, b_rate, p_rules,
                               p_pay, None if p_biz == "none" else p_biz, b_ov)
         st.caption("합계 %s일 · 이자 %s원" % (
             format(sum(p.days for p in b_per), ","),
             format(sum(p.interest for p in b_per), ",")))
-        bonds.append({"start": b_start, "periods": b_per, "amount": b_amt, "rate": b_rate / 100.0})
+        bonds.append({"start": b_start, "periods": b_per, "amount": b_amt, "rate": b_rate})
+        binfo.append({
+            "title": b_vals.get("title"), "issue_type": b_vals.get("issue_type"),
+            "fee_mode": "rate", "fee_rate": b_vals.get("fee_rate"),
+            "pay_text": b_vals.get("pay_text"), "mat": b_mat, "notes": b_notes,
+        })
 
     # ── 통합 표 ──
     st.divider()
@@ -375,11 +512,20 @@ def render(tab_key: str, plan: dict):
     # ── 5단계(엑셀)로 넘길 결과 보관 ──
     result = {
         "asset": asset, "bonds": bonds,
-        "asset_meta": {"amount": loan_amount, "rate": loan_rate / 100.0,
+        "asset_meta": {"amount": loan_amount, "rate": loan_rate,
                        "start": loan_date, "mat": loan_mat,
                        "pay_type": a_pay, "biz": a_biz, "rules": a_rules},
         "nbond": int(nbond), "use_addfee": bool(use_addfee), "addfee": fees,
         "wht_rate": wht_rate, "wht_local": wht_local, "wht": w,
+        # 엑셀 «이자 스케줄» 정보블록에 그대로 들어갈 값 (위 표에서 온 것)
+        "info": {
+            "asset_title": a_vals.get("title"),
+            "borrower": a_vals.get("borrower"),
+            "part_rate": a_vals.get("part_rate"),
+            "asset_pay_text": a_vals.get("pay_text"),
+            "asset_notes": a_notes,
+            "bonds": binfo,
+        },
     }
     st.session_state[_k(tab_key, "result")] = result
     return result

@@ -505,21 +505,17 @@ def sched_notes(tab_key: str):
 
 
 def bond_meta(tab_key: str, k: int) -> dict:
-    """사채권자 자금판(회차 k)에 넣을 계좌·비고."""
+    """사채권자 자금판(회차 k)에 넣을 계좌·각주.
+
+    상단 비고는 5단계 사모사채 개요 표에서 온다(줄 구성이 그쪽과 같아서).
+    """
     d = get_result(tab_key)
     if not d:
         return {}
+
     def _at(name, i, default=""):
         v = d.get(name) or []
         return v[i] if i < len(v) else default
-    notes = (d.get("notes") or {}).get("bond") or []
-    n = notes[k] if k < len(notes) else []
-    def nt(i):
-        return (n[i].strip() or None) if i < len(n) and n[i] else None
-    return {
-        "bank": _at("bank", k), "account_no": _at("account_no", k),
-        "holder": _at("holder", k), "footnote": _at("footnote", k),
-        # 개요 표의 비고 → 사채권자 자금판 상단 비고 칸
-        "issue_type_note": nt(0), "amount_note": nt(2), "issue_date_note": nt(3),
-        "maturity_note": nt(4), "rate_note": nt(6), "fee_note": nt(7),
-    }
+
+    return {"bank": _at("bank", k), "account_no": _at("account_no", k),
+            "holder": _at("holder", k), "footnote": _at("footnote", k)}

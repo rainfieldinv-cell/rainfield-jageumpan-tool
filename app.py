@@ -1726,25 +1726,21 @@ def render_step_excel_spc(tab_key: str):
     plan = daily_ui.apply_to_plan(plan, tab_key)
 
     nb = sched["nbond"]
-    info = {
-        "asset_title": (plan.get("spc_name") or "") + " 기초자산",
-        "borrower": plan.get("borrower"),
-        "part_rate": plan.get("part_rate"),
-        "bonds": [],
-    }
-    names = [plan.get("bond_name"), plan.get("bond_name2"), plan.get("bond_name3")]
-    types = [plan.get("issue_type"), plan.get("issue_type2"), plan.get("issue_type3")]
-    frates = [plan.get("uw_fee_rate"), plan.get("uw_fee_rate2"), plan.get("uw_fee_rate3")]
-    # 4단계 개요 표에 쓴 비고 → 이자 스케줄 정보블록의 비고 칸
-    asset_notes, bond_notes = daily_ui.sched_notes(tab_key)
-    info["asset_notes"] = asset_notes
-    for k in range(nb):
-        info["bonds"].append({
+    # 제목·차주·참여수수료·비고는 5단계 개요 표에서 온다
+    info = dict(sched.get("info") or {})
+    info.setdefault("asset_title", (plan.get("spc_name") or "") + " 기초자산")
+    info.setdefault("borrower", plan.get("borrower"))
+    info.setdefault("part_rate", plan.get("part_rate"))
+    info.setdefault("asset_notes", [])
+    if not info.get("bonds"):
+        names = [plan.get("bond_name"), plan.get("bond_name2"), plan.get("bond_name3")]
+        types = [plan.get("issue_type"), plan.get("issue_type2"), plan.get("issue_type3")]
+        frates = [plan.get("uw_fee_rate"), plan.get("uw_fee_rate2"), plan.get("uw_fee_rate3")]
+        info["bonds"] = [{
             "title": names[k] or ("1-%d회 사모사채" % (k + 1) if nb > 1 else "사모사채"),
             "issue_type": types[k], "fee_mode": "rate", "fee_rate": frates[k],
-            "pay_text": "3개월 후취", "mat": plan.get("bond_maturity"),
-            "notes": bond_notes[k] if k < len(bond_notes) else [],
-        })
+            "pay_text": "3개월 후취", "mat": plan.get("bond_maturity"), "notes": [],
+        } for k in range(nb)]
 
     st.markdown("#### ■ 전체 자금판 (탭 2개)")
     st.caption("한 파일에 **① 당일자금판**, **② 이자 스케줄** 두 탭이 들어갑니다.")
@@ -1764,14 +1760,21 @@ def render_step_excel_spc(tab_key: str):
     cols = st.columns(nb)
     for k in range(nb):
         b = sched["bonds"][k]
+        bi = info["bonds"][k]
         m = {
-            "name": info["bonds"][k]["title"],
-            "issue_type": types[k], "issue_date": b["start"],
-            "maturity": plan.get("bond_maturity"),
-            "fee_mode": "rate", "fee_rate": frates[k],
-            "pay_type": "post", "pay_text": "3개월 후취",
+            "name": bi.get("title"),
+            "issue_type": bi.get("issue_type"), "issue_date": b["start"],
+            "maturity": bi.get("mat") or plan.get("bond_maturity"),
+            "fee_mode": "rate", "fee_rate": bi.get("fee_rate"),
+            "pay_type": "post", "pay_text": bi.get("pay_text") or "3개월 후취",
         }
-        # 계좌(은행명·계좌번호·예금주)·각주·비고는 4단계에서 넣은 값
+        # 상단 비고 7칸 ← 5단계 사모사채 개요 표의 비고 (줄이 그대로 짝지어진다)
+        NOTE_KEYS = ["issue_date_note", "issue_type_note", "amount_note", "rate_note",
+                     "fee_note", "pay_note", "maturity_note"]
+        for i, nk in enumerate(NOTE_KEYS):
+            nl = bi.get("notes") or []
+            m[nk] = nl[i] if i < len(nl) else None
+        # 계좌(은행명·계좌번호·예금주)·각주는 4단계에서 넣은 값
         m.update(daily_ui.bond_meta(tab_key, k))
         try:
             bb = build_bond_book(b, m)

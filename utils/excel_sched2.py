@@ -194,7 +194,9 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         {"label": "대출금액 (원)", "value": am["amount"], "nf": MONEY, "note": _note(an, 2)},
         {"label": "대출금리", "value": am["rate"], "nf": RATE_INFO, "note": _note(an, 3)},
         {"label": "참여수수료", "value": info.get("part_rate"), "nf": PCT2, "note": _note(an, 4)},
-        {"label": "이자지급일", "value": pay_text(am["pay_type"], am["rules"]), "note": _note(an, 5)},
+        {"label": "이자지급일",
+         "value": info.get("asset_pay_text") or pay_text(am["pay_type"], am["rules"]),
+         "note": _note(an, 5)},
         {"label": "만기일", "value": am["mat"], "nf": DATEF, "note": _note(an, 6)},
     ])
 
