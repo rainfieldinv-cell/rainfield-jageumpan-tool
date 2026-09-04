@@ -2124,9 +2124,12 @@ def render_nav(tab_key: str, step: int, built: int):
         )
         if not ready:
             next_col.caption(not_ready_msg)
+    elif step >= len(STEP_NAMES):
+        # 마지막 단계 — 더 남은 단계가 없다
+        next_col.success("여기가 마지막입니다. 엑셀을 받으면 끝!")
     else:
         next_col.button(
-            f"다음: {STEP_NAMES[step]} ▶" if step < len(STEP_NAMES) else "다음 ▶",
+            f"다음: {STEP_NAMES[step]} ▶",
             key=f"next_{tab_key}",
             use_container_width=True,
             disabled=True,

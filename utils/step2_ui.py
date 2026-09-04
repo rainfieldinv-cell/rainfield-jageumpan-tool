@@ -310,25 +310,21 @@ def _rules_editor(tab_key: str, seg: str, title: str, default_pay: str):
 #   편집표의 날짜가 자동값과 다르면 그 칸을 오버라이드로 본다.
 # ─────────────────────────────────────────────
 def _overrides_from_edit(edited: pd.DataFrame, auto: list) -> dict:
-    """표에서 고친 날짜와 **지운 줄**을 읽는다.
+    """표에서 고친 날짜와 **«엑셀에 넣기» 체크를 끈 줄**을 읽는다.
 
-    표에서 줄을 지우면 그 줄의 원래 번호가 결과에서 빠지므로,
-    남아 있는 번호를 모아 없어진 번호를 '지운 줄'로 본다.
-    (예: 마지막 0원짜리 구간처럼 필요 없는 줄을 지울 때)
+    체크는 켜져 있는 것이 기본이다. 끄면 그 줄이 화면 합계·엑셀에서 빠진다.
+    (예: 마지막 0원짜리 구간처럼 필요 없는 줄)
     """
     ov = {"bd": {}, "pay": {}, "drop": set()}
     if edited is None:
         return ov
-    kept = set()
-    for idx, row in edited.iterrows():
-        try:
-            i = int(idx)
-        except (TypeError, ValueError):
-            continue                       # 새로 추가한 줄은 무시
-        if not (0 <= i < len(auto)):
+    for i, p in enumerate(auto):
+        if i >= len(edited):
+            break
+        row = edited.iloc[i]
+        if not bool(row.get("엑셀에 넣기", True)):
+            ov["drop"].add(i)
             continue
-        kept.add(i)
-        p = auto[i]
         s = _read_date(row.get("초일"))
         e = _read_date(row.get("말일"))
         pay = _read_date(row.get("지급일"))
@@ -338,7 +334,6 @@ def _overrides_from_edit(edited: pd.DataFrame, auto: list) -> dict:
             ov["bd"][i + 1] = e
         if pay and pay != p.pay:
             ov["pay"][i] = pay
-    ov["drop"] = {i for i in range(len(auto)) if i not in kept}
     return ov
 
 
@@ -352,6 +347,7 @@ def _apply_drop(periods: list, ov: dict) -> list:
 
 def _sched_frame(periods: list) -> pd.DataFrame:
     return pd.DataFrame([{
+        "엑셀에 넣기": True,
         "구분": _fmt_date(p.pay),
         "초일": _fmt_date(p.start), "말일": _fmt_date(p.end), "지급일": _fmt_date(p.pay),
         "일수": p.days, "금리(연)": round(p.rate * 100, 4),
@@ -361,12 +357,18 @@ def _sched_frame(periods: list) -> pd.DataFrame:
 
 def _editor(label: str, periods: list, key: str) -> pd.DataFrame:
     """날짜는 요일까지 보여준다. 고칠 땐 2026-03-30 처럼 쓰면 되고,
-    요일은 다시 계산해서 붙는다."""
+    요일은 다시 계산해서 붙는다.
+
+    맨 앞 «엑셀에 넣기» 는 켜져 있는 것이 기본이다. 끄면 그 줄만 빠진다.
+    (지우는 방식은 '지운 건지 그냥 안 고른 건지' 헷갈려서 체크로 바꿨다)
+    """
     df = _sched_frame(periods)
     return st.data_editor(
         df, key=key, hide_index=True, width="stretch",
-        num_rows="dynamic",          # 줄 왼쪽을 골라 지울 수 있다
         column_config={
+            "엑셀에 넣기": st.column_config.CheckboxColumn(
+                "엑셀에 넣기", default=True, width="small",
+                help="끄면 이 줄만 화면 합계와 엑셀에서 빠집니다. 기본은 켜짐(전부 들어감)."),
             # 구분은 순번이 아니라 그 구간의 지급일로 (엑셀 B열 "지급날짜"와 같은 뜻)
             "구분": st.column_config.TextColumn("구분(지급일)", disabled=True, width="medium"),
             "초일": st.column_config.TextColumn("이자기간(초일)", width="medium"),
@@ -486,8 +488,8 @@ def render(tab_key: str, plan: dict):
         "1~3단계에서 계약서로 뽑은 값이 아래에 들어와 있습니다. "
         "조건을 손보면 표가 바로 다시 계산됩니다. "
         "표의 **초일·말일·지급일은 직접 고칠 수 있고**, 고친 칸은 그대로 둡니다. "
-        "필요 없는 줄(예: 마지막 0원짜리 구간)은 **줄 왼쪽을 골라 지우면** "
-        "화면 합계와 엑셀에서 함께 빠집니다. "
+        "표의 줄은 **전부 엑셀에 들어갑니다.** 빼고 싶은 줄(예: 마지막 0원짜리 구간)만 "
+        "맨 앞 **«엑셀에 넣기» 체크를 끄면** 그 줄이 화면 합계와 엑셀에서 함께 빠집니다. "
         "맨 왼쪽 **구분(지급일)** 은 자동으로 계산된 값이라, 지급일을 직접 고치면 "
         "그 행의 구분은 고치기 전 날짜로 남습니다(합계·엑셀에는 고친 값이 들어갑니다)."
     )
