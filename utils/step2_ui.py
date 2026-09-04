@@ -156,8 +156,14 @@ def _read_pct_frac(t):
     return None if v is None else v / 100.0
 
 
+WD = "월화수목금토일"
+
+
 def _fmt_date(d):
-    return d.strftime("%Y-%m-%d") if isinstance(d, date) else str(d or "")
+    """날짜는 늘 요일까지 — 2026-03-30(월). 주말·공휴일을 눈으로 바로 보라고."""
+    if isinstance(d, date):
+        return "%s(%s)" % (d.strftime("%Y-%m-%d"), WD[d.weekday()])
+    return str(d or "")
 
 
 def _read_date(t):
@@ -302,41 +308,137 @@ def _overrides_from_edit(edited: pd.DataFrame, auto: list) -> dict:
         if i >= len(edited):
             break
         row = edited.iloc[i]
-        s, e, pay = row.get("초일"), row.get("말일"), row.get("지급일")
-        if isinstance(s, date) and s != p.start:
+        s = _read_date(row.get("초일"))
+        e = _read_date(row.get("말일"))
+        pay = _read_date(row.get("지급일"))
+        if s and s != p.start:
             ov["bd"][i] = s
-        if isinstance(e, date) and e != p.end:
+        if e and e != p.end:
             ov["bd"][i + 1] = e
-        if isinstance(pay, date) and pay != p.pay:
+        if pay and pay != p.pay:
             ov["pay"][i] = pay
     return ov
 
 
 def _sched_frame(periods: list) -> pd.DataFrame:
     return pd.DataFrame([{
-        "구분": p.pay,
-        "초일": p.start, "말일": p.end, "지급일": p.pay,
+        "구분": _fmt_date(p.pay),
+        "초일": _fmt_date(p.start), "말일": _fmt_date(p.end), "지급일": _fmt_date(p.pay),
         "일수": p.days, "금리(연)": round(p.rate * 100, 4),
         "이자금액(세전)": p.interest,
-    } for i, p in enumerate(periods)])
+    } for p in periods])
 
 
 def _editor(label: str, periods: list, key: str) -> pd.DataFrame:
+    """날짜는 요일까지 보여준다. 고칠 땐 2026-03-30 처럼 쓰면 되고,
+    요일은 다시 계산해서 붙는다."""
     df = _sched_frame(periods)
     return st.data_editor(
         df, key=key, hide_index=True, width="stretch",
         column_config={
             # 구분은 순번이 아니라 그 구간의 지급일로 (엑셀 B열 "지급날짜"와 같은 뜻)
-            "구분": st.column_config.DateColumn("구분(지급일)", disabled=True,
-                                              format="YYYY-MM-DD", width="medium"),
-            "초일": st.column_config.DateColumn(format="YYYY-MM-DD"),
-            "말일": st.column_config.DateColumn(format="YYYY-MM-DD"),
-            "지급일": st.column_config.DateColumn(format="YYYY-MM-DD"),
+            "구분": st.column_config.TextColumn("구분(지급일)", disabled=True, width="medium"),
+            "초일": st.column_config.TextColumn("이자기간(초일)", width="medium"),
+            "말일": st.column_config.TextColumn("이자기간(말일)", width="medium"),
+            "지급일": st.column_config.TextColumn("이자지급일", width="medium"),
             "일수": st.column_config.NumberColumn(disabled=True, format="%,d", width="small"),
             "금리(연)": st.column_config.NumberColumn(disabled=True, format="%.4g%%", width="small"),
             "이자금액(세전)": st.column_config.NumberColumn(disabled=True, format="%,d"),
         },
     )
+
+
+# ─────────────────────────────────────────────
+# 공휴일 관리
+# ─────────────────────────────────────────────
+def _holiday_ui(tab_key: str):
+    import json
+
+    from utils import holidays_store as HS
+
+    y0, y1 = HS.year_range()
+    with st.expander("📅 공휴일 관리 (%d ~ %d년)" % (y0, y1), expanded=False):
+        st.caption(
+            "**말일이 주말·공휴일이면** 옵션이 이 목록을 보고 다음 영업일을 찾습니다. "
+            "설날·추석 같은 음력 명절과 대체공휴일은 규칙대로 자동으로 계산되지만, "
+            "**임시공휴일**(정부가 그때그때 정하는 날·선거일)은 자동으로 들어오지 않습니다. "
+            "그런 날은 여기서 직접 넣으세요. 쉬는 날이 아니게 된 날은 «쉬는 날» 체크를 끄면 됩니다."
+        )
+        base = HS.base_map(y0, y1)
+        extra, removed = HS.state()
+        eff = HS.effective_map(y0, y1)
+
+        keys = sorted(set(list(base) + [k for k in extra if y0 <= int(k[:4]) <= y1]))
+        rows = []
+        for k in keys:
+            d = date.fromisoformat(k)
+            rows.append({
+                "날짜": _fmt_date(d),
+                "이름": eff.get(k) or extra.get(k) or base.get(k) or "",
+                "쉬는 날": k in eff,
+                "출처": "기본" if k in base else "직접 넣음",
+            })
+        ed = st.data_editor(
+            pd.DataFrame(rows), key=_k(tab_key, "holtbl"), hide_index=True,
+            width="stretch", num_rows="dynamic",
+            column_config={
+                "날짜": st.column_config.TextColumn("날짜", width="medium",
+                                                  help="2026-10-10 처럼 쓰세요"),
+                "이름": st.column_config.TextColumn("이름", width="large"),
+                "쉬는 날": st.column_config.CheckboxColumn("쉬는 날", width="small"),
+                "출처": st.column_config.TextColumn("출처", disabled=True, width="small"),
+            },
+        )
+
+        c1, c2, c3 = st.columns([1, 1, 2])
+        if c1.button("💾 공휴일 저장", key=_k(tab_key, "holsave"), type="primary"):
+            new_extra = dict(extra)
+            new_removed = [x for x in removed if not (y0 <= int(str(x)[:4] or 0) <= y1)]
+            seen = set()
+            for r in ed.to_dict("records"):
+                d = _read_date(r.get("날짜"))
+                if not d:
+                    continue
+                k = d.isoformat()
+                seen.add(k)
+                name = str(r.get("이름") or "").strip() or "임시공휴일"
+                if not bool(r.get("쉬는 날", True)):
+                    new_removed.append(k)
+                    new_extra.pop(k, None)
+                elif k not in base or base[k] != name:
+                    new_extra[k] = name
+                else:
+                    new_extra.pop(k, None)
+            for k in base:                      # 표에서 지운 기본 공휴일
+                if k not in seen:
+                    new_removed.append(k)
+            for k in list(new_extra):           # 표에서 지운 '직접 넣은' 날
+                if y0 <= int(k[:4]) <= y1 and k not in seen:
+                    new_extra.pop(k)
+            HS.save(new_extra, new_removed)
+            st.success("저장했습니다. 스케줄을 다시 계산합니다.")
+            st.rerun()
+
+        c2.download_button("⬇ 백업 내려받기", data=HS.as_json().encode("utf-8"),
+                           file_name="공휴일_직접넣은날.json", mime="application/json",
+                           key=_k(tab_key, "holdl"))
+        up = c3.file_uploader("백업 되돌리기 (.json)", type=["json"],
+                              key=_k(tab_key, "holup"), label_visibility="collapsed")
+        if up is not None:
+            try:
+                HS.replace_all(json.loads(up.getvalue().decode("utf-8")))
+                st.success("되돌렸습니다.")
+                st.rerun()
+            except Exception as e:
+                st.error("파일을 읽지 못했습니다: %s" % e)
+
+        n_add = len([k for k in extra if y0 <= int(k[:4]) <= y1])
+        n_del = len([k for k in removed if y0 <= int(str(k)[:4] or 0) <= y1])
+        st.caption("기본 %d일 · 직접 넣음 %d일 · 뺌 %d일 → 실제로 쉬는 날 %d일"
+                   % (len(base), n_add, n_del, len(eff)))
+        st.caption("⚠️ 직접 넣은 날은 파일(`data/holidays_extra.json`)에 저장돼 계속 남습니다. "
+                   "다만 앱을 **새로 배포하면 초기화**되니, 바꾼 뒤에는 «백업 내려받기» 로 "
+                   "한 부 받아 두세요.")
 
 
 # ─────────────────────────────────────────────
@@ -367,6 +469,8 @@ def render(tab_key: str, plan: dict):
     wc1, wc2 = c3.columns(2)
     wht_rate = _pct_input(wc1, "원천세율(%)", _k(tab_key, "whtrate"), 14) or 14
     wht_local = _pct_input(wc2, "지방세율(%)", _k(tab_key, "whtlocal"), 10) or 10
+
+    _holiday_ui(tab_key)
 
     st.divider()
 
@@ -448,20 +552,20 @@ def render(tab_key: str, plan: dict):
     fees = addfee_by_date(asset, bonds) if use_addfee else {}
     rows = []
     for r in merge_axis(asset, bonds):
-        row = {"지급날짜": r["date"]}
+        row = {"지급날짜": _fmt_date(r["date"])}
         a = r["asset"]
-        row["기초 초일"] = a.start if a else None
-        row["기초 말일"] = a.end if a else None
+        row["기초 초일"] = _fmt_date(a.start) if a else None
+        row["기초 말일"] = _fmt_date(a.end) if a else None
         row["기초 일수"] = a.days if a else None
         row["기초 이자"] = a.interest if a else None
         for k, b in enumerate(r["bonds"]):
             tag = "사모%d " % (k + 1) if len(r["bonds"]) > 1 else "사모 "
             if b == "BASE":
-                row[tag + "초일"] = bonds[k]["start"]
+                row[tag + "초일"] = _fmt_date(bonds[k]["start"])
                 row[tag + "일수"] = None
                 row[tag + "이자"] = 0
             elif b:
-                row[tag + "초일"] = b.start
+                row[tag + "초일"] = _fmt_date(b.start)
                 row[tag + "일수"] = b.days
                 row[tag + "이자"] = b.interest
             else:
@@ -492,11 +596,11 @@ def render(tab_key: str, plan: dict):
                "원천세·지방세 모두 10원 단위 절사.")
     w = wht_rows(asset, wht_rate, wht_local)
     wdf = pd.DataFrame([{
-        "이자지급일": r["pay"], "이자금액(세전)": r["interest"],
+        "이자지급일": _fmt_date(r["pay"]), "이자금액(세전)": r["interest"],
         "원천세": r["wht"], "지방세": r["local"], "합계": r["total"],
     } for r in w])
     if not wdf.empty:
-        wdf.loc[len(wdf)] = {"이자지급일": None, "이자금액(세전)": wdf["이자금액(세전)"].sum(),
+        wdf.loc[len(wdf)] = {"이자지급일": "합 계", "이자금액(세전)": wdf["이자금액(세전)"].sum(),
                              "원천세": wdf["원천세"].sum(), "지방세": wdf["지방세"].sum(),
                              "합계": wdf["합계"].sum()}
     st.dataframe(

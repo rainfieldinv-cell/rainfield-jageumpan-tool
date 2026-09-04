@@ -159,7 +159,22 @@ KR_HOLIDAYS = {
 
 
 def is_holiday(d: date) -> bool:
-    """한국 공휴일 여부. 라이브러리가 있으면 그걸(대체공휴일 자동), 없으면 고정 목록."""
+    """한국 공휴일 여부.
+
+    ① 화면 «공휴일 관리»에서 직접 넣거나 뺀 날이 가장 우선
+    ② 그다음 라이브러리(대체공휴일 자동 계산)
+    ③ 라이브러리가 없으면 고정 목록
+    """
+    try:
+        from utils.holidays_store import state as _hstate
+        extra, removed = _hstate()
+        k = d.isoformat()
+        if k in removed:
+            return False
+        if k in extra:
+            return True
+    except Exception:
+        pass
     if _KR_LIB is not None:
         return d in _KR_LIB
     return d in KR_HOLIDAYS

@@ -74,9 +74,13 @@ def _read_pct(t):
         return None
 
 
+WD = "월화수목금토일"
+
+
 def _fmt_date(d):
+    """날짜는 늘 요일까지 — 2026-03-30(월)."""
     if isinstance(d, (date, datetime)):
-        return d.strftime("%Y-%m-%d")
+        return "%s(%s)" % (d.strftime("%Y-%m-%d"), WD[d.weekday()])
     return str(d or "")
 
 
