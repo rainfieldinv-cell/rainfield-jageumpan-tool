@@ -465,4 +465,13 @@ def write_wht(ws, meta: dict, asset: list, rate_pct: float, local_pct: float):
         _set(ws, f"{L}{sr}", f"=SUM({L}{first}:{L}{last})", bold=True, nf=MONEY,
              h="right", fill=F_GRAY)
         _box(ws, f"{L}{sr}")
+
+    # 바깥은 굵게 — 다른 표들과 같이 하나의 상자로 보이게
+    for r in range(hr, sr + 1):
+        for c in range(2, 7):
+            cell = ws.cell(row=r, column=c)
+            b = cell.border
+            cell.border = Border(
+                top=_MED if r == hr else b.top, bottom=_MED if r == sr else b.bottom,
+                left=_MED if c == 2 else b.left, right=_MED if c == 6 else b.right)
     return {"first": first, "sum_row": sr}

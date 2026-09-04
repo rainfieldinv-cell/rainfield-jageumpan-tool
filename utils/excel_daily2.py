@@ -69,12 +69,40 @@ def _set(ws, coord, value=None, font=FONT, fill=None, align=CENTER, numfmt=None)
 
 
 def _box(ws, c1, r1, c2, r2):
-    """안쪽은 얇게, 바깥은 굵게."""
+    """안쪽은 얇게, 바깥은 굵게.
+
+    ※ 병합한 칸 주의 : 엑셀은 병합범위의 테두리를 '왼쪽 위 칸' 것으로 다시 칠한다.
+      그래서 B4:D4 처럼 가로로 병합된 줄에 칸마다 선을 주면, 저장할 때
+      맨 왼쪽 칸(B4)의 오른쪽 선이 범위 전체의 오른쪽 선이 되어
+      표의 바깥선이 얇게 나온다. 병합범위는 '범위 전체가 어디에 걸쳐 있는지'로
+      한 번에 판단해서 왼쪽 위 칸에만 준다.
+    """
+    merged = list(ws.merged_cells.ranges)
+
+    def rng_at(r, c):
+        for m in merged:
+            if m.min_row <= r <= m.max_row and m.min_col <= c <= m.max_col:
+                return m
+        return None
+
+    done = set()
     for r in range(r1, r2 + 1):
         for c in range(c1, c2 + 1):
-            ws.cell(row=r, column=c).border = Border(
-                top=_MED if r == r1 else _THIN, bottom=_MED if r == r2 else _THIN,
-                left=_MED if c == c1 else _THIN, right=_MED if c == c2 else _THIN)
+            m = rng_at(r, c)
+            if m is None:
+                rr, cc = r, c
+                top, bot = (r == r1), (r == r2)
+                lef, rig = (c == c1), (c == c2)
+            else:
+                if (m.min_row, m.min_col) in done:
+                    continue
+                done.add((m.min_row, m.min_col))
+                rr, cc = m.min_row, m.min_col
+                top, bot = (m.min_row == r1), (m.max_row == r2)
+                lef, rig = (m.min_col == c1), (m.max_col == c2)
+            ws.cell(row=rr, column=cc).border = Border(
+                top=_MED if top else _THIN, bottom=_MED if bot else _THIN,
+                left=_MED if lef else _THIN, right=_MED if rig else _THIN)
 
 
 def _fill_row(ws, row, c1, c2, fill):
