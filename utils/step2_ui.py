@@ -310,13 +310,25 @@ def _rules_editor(tab_key: str, seg: str, title: str, default_pay: str):
 #   편집표의 날짜가 자동값과 다르면 그 칸을 오버라이드로 본다.
 # ─────────────────────────────────────────────
 def _overrides_from_edit(edited: pd.DataFrame, auto: list) -> dict:
-    ov = {"bd": {}, "pay": {}}
-    if edited is None or edited.empty:
+    """표에서 고친 날짜와 **지운 줄**을 읽는다.
+
+    표에서 줄을 지우면 그 줄의 원래 번호가 결과에서 빠지므로,
+    남아 있는 번호를 모아 없어진 번호를 '지운 줄'로 본다.
+    (예: 마지막 0원짜리 구간처럼 필요 없는 줄을 지울 때)
+    """
+    ov = {"bd": {}, "pay": {}, "drop": set()}
+    if edited is None:
         return ov
-    for i, p in enumerate(auto):
-        if i >= len(edited):
-            break
-        row = edited.iloc[i]
+    kept = set()
+    for idx, row in edited.iterrows():
+        try:
+            i = int(idx)
+        except (TypeError, ValueError):
+            continue                       # 새로 추가한 줄은 무시
+        if not (0 <= i < len(auto)):
+            continue
+        kept.add(i)
+        p = auto[i]
         s = _read_date(row.get("초일"))
         e = _read_date(row.get("말일"))
         pay = _read_date(row.get("지급일"))
@@ -326,7 +338,16 @@ def _overrides_from_edit(edited: pd.DataFrame, auto: list) -> dict:
             ov["bd"][i + 1] = e
         if pay and pay != p.pay:
             ov["pay"][i] = pay
+    ov["drop"] = {i for i in range(len(auto)) if i not in kept}
     return ov
+
+
+def _apply_drop(periods: list, ov: dict) -> list:
+    """표에서 지운 줄을 빼고 돌려준다(화면 표·합계·엑셀에 모두 반영)."""
+    drop = (ov or {}).get("drop") or set()
+    if not drop:
+        return periods
+    return [p for i, p in enumerate(periods) if i not in drop]
 
 
 def _sched_frame(periods: list) -> pd.DataFrame:
@@ -344,6 +365,7 @@ def _editor(label: str, periods: list, key: str) -> pd.DataFrame:
     df = _sched_frame(periods)
     return st.data_editor(
         df, key=key, hide_index=True, width="stretch",
+        num_rows="dynamic",          # 줄 왼쪽을 골라 지울 수 있다
         column_config={
             # 구분은 순번이 아니라 그 구간의 지급일로 (엑셀 B열 "지급날짜"와 같은 뜻)
             "구분": st.column_config.TextColumn("구분(지급일)", disabled=True, width="medium"),
@@ -459,6 +481,8 @@ def render(tab_key: str, plan: dict):
         "1~3단계에서 계약서로 뽑은 값이 아래에 들어와 있습니다. "
         "조건을 손보면 표가 바로 다시 계산됩니다. "
         "표의 **초일·말일·지급일은 직접 고칠 수 있고**, 고친 칸은 그대로 둡니다. "
+        "필요 없는 줄(예: 마지막 0원짜리 구간)은 **줄 왼쪽을 골라 지우면** "
+        "화면 합계와 엑셀에서 함께 빠집니다. "
         "맨 왼쪽 **구분(지급일)** 은 자동으로 계산된 값이라, 지급일을 직접 고치면 "
         "그 행의 구분은 고치기 전 날짜로 남습니다(합계·엑셀에는 고친 값이 들어갑니다)."
     )
@@ -505,12 +529,14 @@ def render(tab_key: str, plan: dict):
                            a_rules, a_pay, None if a_biz == "none" else a_biz)
     a_edit = _editor("기초자산", a_auto, _k(tab_key, "asset", "tbl"))
     a_ov = _overrides_from_edit(a_edit, a_auto)
-    asset = make_schedule(loan_date, loan_mat, loan_amount, loan_rate,
-                          a_rules, a_pay, None if a_biz == "none" else a_biz, a_ov)
-    st.caption("합계 %s일 · 이자 %s원%s" % (
+    asset = _apply_drop(
+        make_schedule(loan_date, loan_mat, loan_amount, loan_rate,
+                      a_rules, a_pay, None if a_biz == "none" else a_biz, a_ov), a_ov)
+    st.caption("합계 %s일 · 이자 %s원%s%s" % (
         format(sum(p.days for p in asset), ","), format(sum(p.interest for p in asset), ","),
         "  · 직접 고친 칸 %d개" % (len(a_ov["bd"]) + len(a_ov["pay"]))
-        if (a_ov["bd"] or a_ov["pay"]) else ""))
+        if (a_ov["bd"] or a_ov["pay"]) else "",
+        "  · 지운 줄 %d개" % len(a_ov["drop"]) if a_ov["drop"] else ""))
 
     # ── 사모사채 ──
     bonds = []
@@ -543,11 +569,13 @@ def render(tab_key: str, plan: dict):
                                p_pay, None if p_biz == "none" else p_biz)
         b_edit = _editor(f"사모사채{k}", b_auto, _k(tab_key, "bond", k, "tbl"))
         b_ov = _overrides_from_edit(b_edit, b_auto)
-        b_per = make_schedule(b_start, b_mat, b_amt, b_rate, p_rules,
-                              p_pay, None if p_biz == "none" else p_biz, b_ov)
-        st.caption("합계 %s일 · 이자 %s원" % (
+        b_per = _apply_drop(
+            make_schedule(b_start, b_mat, b_amt, b_rate, p_rules,
+                          p_pay, None if p_biz == "none" else p_biz, b_ov), b_ov)
+        st.caption("합계 %s일 · 이자 %s원%s" % (
             format(sum(p.days for p in b_per), ","),
-            format(sum(p.interest for p in b_per), ",")))
+            format(sum(p.interest for p in b_per), ","),
+            "  · 지운 줄 %d개" % len(b_ov["drop"]) if b_ov["drop"] else ""))
         bonds.append({"start": b_start, "periods": b_per, "amount": b_amt, "rate": b_rate})
         binfo.append({
             "title": b_vals.get("title"), "issue_type": b_vals.get("issue_type"),
