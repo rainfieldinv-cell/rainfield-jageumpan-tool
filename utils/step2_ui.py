@@ -382,13 +382,18 @@ def _editor(label: str, periods: list, key: str) -> pd.DataFrame:
 # ─────────────────────────────────────────────
 # 공휴일 관리
 # ─────────────────────────────────────────────
-def _holiday_ui(tab_key: str):
+def holiday_panel(tab_key: str = "top"):
+    """공휴일 관리 알맹이. 화면 맨 위(제목 옆)에서 부른다.
+
+    ※ 위젯 key 가 겹치므로 한 화면에 한 번만 그린다.
+    """
     import json
 
     from utils import holidays_store as HS
 
     y0, y1 = HS.year_range()
-    with st.expander("📅 공휴일 관리 (%d ~ %d년)" % (y0, y1), expanded=False):
+    if True:
+        st.markdown("#### 📅 공휴일 관리 (%d ~ %d년)" % (y0, y1))
         st.caption(
             "**말일이 주말·공휴일이면** 옵션이 이 목록을 보고 다음 영업일을 찾습니다. "
             "설날·추석 같은 음력 명절과 대체공휴일은 규칙대로 자동으로 계산되지만, "
@@ -503,7 +508,8 @@ def render(tab_key: str, plan: dict):
     wht_rate = _pct_input(wc1, "원천세율(%)", _k(tab_key, "whtrate"), 14) or 14
     wht_local = _pct_input(wc2, "지방세율(%)", _k(tab_key, "whtlocal"), 10) or 10
 
-    _holiday_ui(tab_key)
+    st.caption("📅 공휴일(임시공휴일 포함)은 **화면 맨 위 «공휴일 관리»** 에서 넣고 뺍니다. "
+               "«말일이 주말·공휴일이면» 옵션이 그 목록을 봅니다.")
 
     st.divider()
 
