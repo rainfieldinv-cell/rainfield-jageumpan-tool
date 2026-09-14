@@ -756,6 +756,9 @@ def render_step_read_spc(tab_key: str):
         key=f"uploader_{tab_key}",
         label_visibility="collapsed",
     )
+    # 워드도 받기는 하지만 웹에서는 PDF 변환이 실패할 수 있다(위 접이식 안내 참고)
+    st.caption("※ **PDF를 권합니다.** 워드(.docx)도 올라가지만, 웹에서는 PDF로 바꾸는 "
+               "과정이 실패할 수 있어 권하지 않습니다. 만드는 법은 위 «📌 PDF로 올려 주세요» 참고.")
 
     if not files:
         st.info("계약서 파일들을 올리면 종류별로 자동 분류하고 텍스트를 추출합니다.")
