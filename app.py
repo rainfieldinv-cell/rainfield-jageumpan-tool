@@ -705,6 +705,14 @@ def render_step_read_spc(tab_key: str):
             "**선택:** 추가참여수수료약정서"
         )
 
+    # ── 사용 방법 : 무엇을 어떤 형식으로 올리는지 (항상 보이게) ──
+    st.markdown(
+        ":red[**PDF 파일로 올려 주세요.**]  \n"
+        "워드(.docx)만 있으면 **워드에서 PDF로 바꾼 뒤 그 PDF를** 올리시면 됩니다.  \n"
+        ":gray[워드에서 **F12** → 파일 형식을 «PDF (\\*.pdf)» 로 → 저장  "
+        "(알집PDF 같은 변환 프로그램은 쓰지 마세요 — 글자 위치가 틀어집니다)]"
+    )
+
     # ── 워드 / PDF 무엇을 올려야 하나 (처음 쓰는 사람용 설명) ──
     with st.expander("📌 PDF로 올려 주세요 — 만드는 법  (눌러서 보기)", expanded=False):
         st.markdown(
@@ -756,9 +764,9 @@ def render_step_read_spc(tab_key: str):
         key=f"uploader_{tab_key}",
         label_visibility="collapsed",
     )
-    # 워드도 받기는 하지만 웹에서는 PDF 변환이 실패할 수 있다(위 접이식 안내 참고)
-    st.caption("※ **PDF를 권합니다.** 워드(.docx)도 올라가지만, 웹에서는 PDF로 바꾸는 "
-               "과정이 실패할 수 있어 권하지 않습니다. 만드는 법은 위 «📌 PDF로 올려 주세요» 참고.")
+    # 워드도 받기는 하지만 웹에서는 PDF 변환이 실패할 수 있다(위 안내 참고)
+    st.caption("※ 워드(.docx)도 골라지기는 하지만 **웹에서는 PDF로 바꾸다 실패할 수 있습니다.** "
+               "위 설명대로 PDF로 만들어 올려 주세요.")
 
     if not files:
         st.info("계약서 파일들을 올리면 종류별로 자동 분류하고 텍스트를 추출합니다.")
