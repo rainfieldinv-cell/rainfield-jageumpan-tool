@@ -25,7 +25,7 @@ _PATH = os.path.join(_DIR, "holidays_extra.json")
 _LOCK = threading.Lock()
 _CACHE = None
 
-YEARS_AHEAD = 3          # 올해부터 3년 뒤까지 보여준다
+YEARS_AHEAD = 5          # 올해부터 5년 뒤까지 보여준다 (2026년이면 2031년까지)
 
 
 def _blank():
