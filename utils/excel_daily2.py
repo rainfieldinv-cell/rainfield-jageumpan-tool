@@ -45,8 +45,9 @@ FILL_CO = PatternFill("solid", fgColor="E2F0D9")     # Cash Out (연초록)
 FILL_SUM = PatternFill("solid", fgColor="F2F2F2")    # 합계
 FILL_WHITE = PatternFill("solid", fgColor="FFFFFF")
 
-_THIN = Side(style="thin", color="B0B0B0")
-_MED = Side(style="medium", color="808080")
+# 테두리 색은 회사 원본과 같이 자동(검정). 회색이면 흐려 보인다.
+_THIN = Side(style="thin")
+_MED = Side(style="medium")
 
 CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
 LEFT = Alignment(horizontal="left", vertical="center", wrap_text=True)

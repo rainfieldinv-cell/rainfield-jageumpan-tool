@@ -372,11 +372,15 @@ def _apply_drop(periods: list, ov: dict) -> list:
 def _sched_frame(periods: list) -> pd.DataFrame:
     # «구분(지급일)» 은 맨 뒤 «이자지급일» 과 값이 같아 헷갈린다는 지적이 있어 화면에서는 뺀다.
     # 엑셀 «이자 스케줄» 의 B열 «지급날짜» 는 이 표가 아니라 병합축에서 따로 만들므로 그대로다.
+    # 일수 0 = 알맹이 없는 구간. 엑셀과 같이 날짜·일수·금리까지 전부 비운다.
     return pd.DataFrame([{
         "엑셀에 넣기": True,
-        "초일": _fmt_date(p.start), "말일": _fmt_date(p.end), "지급일": _fmt_date(p.pay),
-        "일수": p.days, "금리(연)": round(p.rate * 100, 4),
-        "이자금액(세전)": p.interest,
+        "초일": _fmt_date(p.start) if p.days else "",
+        "말일": _fmt_date(p.end) if p.days else "",
+        "지급일": _fmt_date(p.pay) if p.days else "",
+        "일수": p.days if p.days else None,
+        "금리(연)": round(p.rate * 100, 4) if p.days else None,
+        "이자금액(세전)": p.interest if p.days else None,
     } for p in periods])
 
 
@@ -627,6 +631,8 @@ def render(tab_key: str, plan: dict):
     for r in merge_axis(asset, bonds):
         row = {"지급날짜": _fmt_date(r["date"])}
         a = r["asset"]
+        if a is not None and not a.days:     # 알맹이 없는 구간은 비운다
+            a = None
         row["기초 초일"] = _fmt_date(a.start) if a else None
         row["기초 말일"] = _fmt_date(a.end) if a else None
         row["기초 일수"] = a.days if a else None
@@ -637,7 +643,7 @@ def render(tab_key: str, plan: dict):
                 row[tag + "초일"] = _fmt_date(bonds[k]["start"])
                 row[tag + "일수"] = None
                 row[tag + "이자"] = 0
-            elif b:
+            elif b and b.days:
                 row[tag + "초일"] = _fmt_date(b.start)
                 row[tag + "일수"] = b.days
                 row[tag + "이자"] = b.interest
@@ -667,7 +673,7 @@ def render(tab_key: str, plan: dict):
     st.markdown("### 후순위대여")
     st.caption("기초자산(Cash-in)의 **이자금액만** 대상입니다(참여수수료 제외). "
                "원천세·지방세 모두 10원 단위 절사.")
-    w = wht_rows(asset, wht_rate, wht_local)
+    w = wht_rows([p for p in asset if p.days], wht_rate, wht_local)
     wdf = pd.DataFrame([{
         "이자지급일": _fmt_date(r["pay"]), "이자금액(세전)": r["interest"],
         "원천세": r["wht"], "지방세": r["local"], "합계": r["total"],

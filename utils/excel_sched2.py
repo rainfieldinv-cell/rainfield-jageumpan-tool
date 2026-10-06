@@ -279,6 +279,9 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
     C, D, E, F, G, H, I = (_L(AC["start"]), _L(AC["end"]), _L(AC["pay"]),
                            _L(AC["days"]), _L(AC["rate"]), _L(AC["fee"]), _L(AC["int"]))
     for idx, p in enumerate(asset):
+        # 일수 0 = 알맹이 없는 구간. 날짜·일수·금리까지 아무것도 적지 않고 비운다.
+        if p.days == 0:
+            continue
         r = row_of[p.pay]
         _set(ws, f"{C}{r}", p.start, nf=DATEF); _box(ws, f"{C}{r}")
         _set(ws, f"{D}{r}", p.end, nf=DATEF); _box(ws, f"{D}{r}")
@@ -314,6 +317,8 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         _set(ws, f"{bI}{base_r}", 0, nf=MONEY); _box(ws, f"{bI}{base_r}")
 
         for p in b["periods"]:
+            if p.days == 0:        # 알맹이 없는 구간은 비운다
+                continue
             r = row_of[p.pay]
             _set(ws, f"{bC}{r}", p.start, nf=DATEF); _box(ws, f"{bC}{r}")
             _set(ws, f"{bD}{r}", p.end, nf=DATEF); _box(ws, f"{bD}{r}")
@@ -336,6 +341,8 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         if same_len:
             int_cols = [_L(seg_cols(BOND_BASE[k])["int"]) for k in range(nb)]
             for i, ap in enumerate(asset):
+                if ap.days == 0 or valid[0]["periods"][i].days == 0:
+                    continue       # 알맹이 없는 구간은 비운다
                 r = row_of[valid[0]["periods"][i].pay]
                 if ap.pay in manual or valid[0]["periods"][i].pay in manual:
                     v = manual.get(valid[0]["periods"][i].pay, manual.get(ap.pay))
@@ -462,7 +469,8 @@ def write_wht(ws, meta: dict, asset: list, rate_pct: float, local_pct: float):
 
     first = hr + 1
     payL, intL = meta["asset_pay_col"], meta["asset_int_col"]
-    for i, p in enumerate(asset):
+    rows_in = [p for p in asset if p.days]      # 알맹이 없는 구간은 빼고
+    for i, p in enumerate(rows_in):
         r = first + i
         src = meta["row_of"][p.pay]
         _set(ws, f"B{r}", f"={payL}{src}", nf=DATEF); _box(ws, f"B{r}")
@@ -471,7 +479,7 @@ def write_wht(ws, meta: dict, asset: list, rate_pct: float, local_pct: float):
         _set(ws, f"E{r}", f"=ROUNDDOWN(D{r}*{local_pct}%,-1)", nf=MONEY, h="right"); _box(ws, f"E{r}")
         _set(ws, f"F{r}", f"=E{r}+D{r}", nf=MONEY, h="right"); _box(ws, f"F{r}")
 
-    last = first + len(asset) - 1
+    last = first + len(rows_in) - 1
     sr = last + 1
     _set(ws, f"B{sr}", "합 계", bold=True, fill=F_GRAY); _box(ws, f"B{sr}")
     for L in ("C", "D", "E", "F"):
