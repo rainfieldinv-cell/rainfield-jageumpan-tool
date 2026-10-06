@@ -26,6 +26,23 @@ SHEET_DAILY = "당일자금판"
 SHEET_SCHED = "이자 스케줄"
 
 
+def finish_merges(ws):
+    """병합칸 테두리를 '다 그린 뒤' 한 번 더 맞춘다.
+
+    openpyxl 의 merge_cells() 는 병합하는 '그 순간' 왼쪽 위 칸의 테두리를
+    나머지 칸에 복사한다(MergedCellRange.format). 그런데 이 코드는 병합부터
+    하고 테두리를 나중에 그리므로, 병합칸의 뒤쪽 칸들에는 빈 테두리가
+    복사된 채 저장됐다. 엑셀은 칸마다 제 선을 그리므로 B3:C3 같은 병합칸의
+    오른쪽 절반(C)만 선이 빠져 '테두리를 하다 만' 모양이 됐다.
+
+    ※ openpyxl 로 다시 읽으면 읽는 순간 또 format() 이 돌아 선이 다 있는
+      것처럼 보인다. 그래서 그동안 확인할 때 못 잡았다. 진짜 상태는
+      파일 속 XML 을 직접 봐야 보인다.
+    """
+    for mcr in list(ws.merged_cells.ranges):
+        mcr.format()
+
+
 def build_2tab(plan: dict, accounts: dict, sched: dict, info: dict = None) -> BytesIO:
     """전체 자금판 — 탭 2개(당일자금판 · 이자 스케줄)."""
     wb = Workbook()
@@ -53,6 +70,8 @@ def build_2tab(plan: dict, accounts: dict, sched: dict, info: dict = None) -> By
     }
     write_daily_sheet(ws1, plan, accounts, refs, sched["nbond"])
 
+    finish_merges(ws1)
+    finish_merges(ws2)
     wb.calculation.fullCalcOnLoad = True
     bio = BytesIO()
     wb.save(bio)
@@ -232,10 +251,15 @@ def build_bond_book(bond: dict, meta: dict) -> BytesIO:
     _fill_rng(ws, 2, 12, 13, 12, FILL_BLUE, white=True)
 
     # ── 병합 ──
-    for m in ["B2:D2", "E2:F2", "H2:M3", "B3:C3", "E3:F3", "B4:C4", "E4:F4",
-              "B5:C5", "H5:I5", "J5:K5", "L5:M5", "B6:C6", "E6:F6",
-              "H6:I7", "J6:K7", "L6:M7", "B7:C7", "E7:F7", "B8:C8", "E8:F8",
-              "B9:C9", "E9:F9", "B12:M12"]:
+    # 손으로 적다 보니 E5:F5 가 빠져 발행금액 줄만 비고 칸이 쪼개져 있었다.
+    # 줄마다 똑같이 생기는 병합은 손으로 적지 말고 만들어 쓴다.
+    merges = ["B2:D2", "E2:F2", "H2:M3",          # 제목 · 비고 머리 · 계좌 제목
+              "H5:I5", "J5:K5", "L5:M5",          # 계좌 머리(은행명·계좌번호·예금주)
+              "H6:I7", "J6:K7", "L6:M7",          # 계좌 값
+              "B12:M12"]                          # 스케줄 제목 띠
+    merges += ["B%d:C%d" % (r, r) for r in range(3, 10)]   # 줄 이름
+    merges += ["E%d:F%d" % (r, r) for r in range(3, 10)]   # 줄 비고
+    for m in merges:
         try:
             ws.merge_cells(m)
         except Exception:
@@ -250,6 +274,7 @@ def build_bond_book(bond: dict, meta: dict) -> BytesIO:
         except Exception:
             pass
 
+    finish_merges(ws)
     wb.calculation.fullCalcOnLoad = True
     bio = BytesIO()
     wb.save(bio)
