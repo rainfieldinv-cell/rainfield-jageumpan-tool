@@ -119,24 +119,28 @@ def _pct_input(col, label, key, default=None, help=None):
 #   아래 7줄이 정보블록의 7줄과 하나씩 짝을 이룬다.
 #   '이자지급일' 은 아래 규칙에서 자동으로 채워지고 직접 고칠 수도 있다.
 # ─────────────────────────────────────────────
+#   줄 구성과 순서는 회사에서 쓰는 자금판 양식(당일자금판 개요)과 똑같이 맞췄다.
+#   «대출기간(일)» 은 만기일 − 시작일로 저절로 채워지는 칸이라 고칠 수 없다.
 ASSET_INFO = [
-    ("대출실행일", "start", "date"),
-    ("차주", "borrower", "text"),
+    ("차주명", "borrower", "text"),
     ("대출금액(원)", "amount", "won"),
-    ("대출금리", "rate", "pct"),
-    ("참여수수료", "part_rate", "pct"),
-    ("이자지급일", "pay_text", "auto"),
+    ("대출일", "start", "date"),
     ("만기일", "mat", "date"),
+    ("대출기간(일)", None, "calc"),
+    ("금리(연,고정)", "rate", "pct"),
+    ("참여수수료", "part_rate", "pct"),
+    ("기타", "etc", "text"),
 ]
 
 BOND_INFO = [
-    ("사모사채 발행일", "start", "date"),
-    ("발행 유형", "issue_type", "text"),
-    ("사모사채 발행금액(원)", "amount", "won"),
-    ("사모사채 발행금리", "rate", "pct"),
-    ("사모사채 인수수수료(원)", "fee_rate", "pct"),
-    ("이자지급일", "pay_text", "auto"),
+    ("발행방법", "issue_type", "text"),
+    ("사채명", "name", "text"),
+    ("발행금액(원)", "amount", "won"),
+    ("발행일", "start", "date"),
     ("만기일", "mat", "date"),
+    ("대출기간(일)", None, "calc"),
+    ("금리(연,고정)", "rate", "pct"),
+    ("__FEE__", "fee_rate", "pct"),      # 인수/주선/자문수수료 — 고른 종류로 이름이 바뀐다
 ]
 
 
@@ -179,10 +183,23 @@ def _read_date(t):
 
 _FMT = {"won": _fmt_won, "pct": _fmt_pct_frac, "date": _fmt_date,
         "text": lambda v: "" if v is None else str(v),
-        "auto": lambda v: "" if v is None else str(v)}
+        "auto": lambda v: "" if v is None else str(v),
+        "calc": lambda v: "" if v is None else format(int(v), ",")}
 _READ = {"won": _read_won, "pct": _read_pct_frac, "date": _read_date,
          "text": lambda t: (str(t).strip() or None),
-         "auto": lambda t: (str(t).strip() or None)}
+         "auto": lambda t: (str(t).strip() or None),
+         "calc": lambda t: None}
+
+
+def _calc_days(rows, spec):
+    """«대출기간(일)» = 만기일 − 시작일(대출일/발행일). 표의 날짜 칸에서 바로 센다."""
+    got = {}
+    for i, (name, _f, kind) in enumerate(spec):
+        if kind == "date" and i < len(rows):
+            got[name] = _read_date(rows[i].get("내용"))
+    a = got.get("대출일") or got.get("발행일")
+    b = got.get("만기일")
+    return (b - a).days if (a and b) else None
 
 
 def _pay_text_auto(tab_key, seg, default_pay):
@@ -196,10 +213,10 @@ def _pay_text_auto(tab_key, seg, default_pay):
     return "%d개월 %s" % (m, "선취" if pt == "pre" else "후취")
 
 
-def _info_editor(tab_key, seg, spec, defaults, autotext):
+def _info_editor(tab_key, seg, spec, defaults, autotext, fee_label="인수수수료"):
     """엑셀 정보블록 하나 — 맨 위 제목칸 + (구분 / 내용 / 비고) 표.
 
-    돌려주는 것 : (고친 값 dict[title 포함], 비고 7줄)
+    돌려주는 것 : (고친 값 dict[title 포함], 비고 — 줄 수만큼)
     """
     # ── 제목칸 : 엑셀에서 표 맨 위에 걸리는 띠. 표 안의 항목이 아니다 ──
     tkey = _k(tab_key, seg, "title")
@@ -213,7 +230,7 @@ def _info_editor(tab_key, seg, spec, defaults, autotext):
     rows = st.session_state.get(sk)
     if rows is None or st.session_state.get(sk + "_sig") != sig:
         old = rows or []
-        rows = [{"구분": name,
+        rows = [{"구분": (fee_label if name == "__FEE__" else name),
                  "내용": _FMT[kind](autotext if kind == "auto" else defaults.get(field)),
                  "비고": (old[i]["비고"] if i < len(old) else "")}
                 for i, (name, field, kind) in enumerate(spec)]
@@ -226,6 +243,13 @@ def _info_editor(tab_key, seg, spec, defaults, autotext):
         if kind == "auto" and rows[i]["내용"] in ("", None, prev):
             rows[i]["내용"] = autotext
     st.session_state[sk + "_auto"] = autotext
+
+    # 대출기간(일) 은 날짜 두 칸에서 저절로 채워진다
+    _days = _calc_days(rows, spec)
+    for i, (_n, _f, kind) in enumerate(spec):
+        if kind == "calc":
+            rows[i]["내용"] = _FMT["calc"](_days)
+            rows[i]["구분"] = _n
 
     ed = st.data_editor(
         pd.DataFrame(rows), key=_k(tab_key, seg, "infotbl"),
@@ -346,9 +370,10 @@ def _apply_drop(periods: list, ov: dict) -> list:
 
 
 def _sched_frame(periods: list) -> pd.DataFrame:
+    # «구분(지급일)» 은 맨 뒤 «이자지급일» 과 값이 같아 헷갈린다는 지적이 있어 화면에서는 뺀다.
+    # 엑셀 «이자 스케줄» 의 B열 «지급날짜» 는 이 표가 아니라 병합축에서 따로 만들므로 그대로다.
     return pd.DataFrame([{
         "엑셀에 넣기": True,
-        "구분": _fmt_date(p.pay),
         "초일": _fmt_date(p.start), "말일": _fmt_date(p.end), "지급일": _fmt_date(p.pay),
         "일수": p.days, "금리(연)": round(p.rate * 100, 4),
         "이자금액(세전)": p.interest,
@@ -369,8 +394,6 @@ def _editor(label: str, periods: list, key: str) -> pd.DataFrame:
             "엑셀에 넣기": st.column_config.CheckboxColumn(
                 "엑셀에 넣기", default=True, width="small",
                 help="끄면 이 줄만 화면 합계와 엑셀에서 빠집니다. 기본은 켜짐(전부 들어감)."),
-            # 구분은 순번이 아니라 그 구간의 지급일로 (엑셀 B열 "지급날짜"와 같은 뜻)
-            "구분": st.column_config.TextColumn("구분(지급일)", disabled=True, width="medium"),
             "초일": st.column_config.TextColumn("이자기간(초일)", width="medium"),
             "말일": st.column_config.TextColumn("이자기간(말일)", width="medium"),
             "지급일": st.column_config.TextColumn("이자지급일", width="medium"),
@@ -519,13 +542,15 @@ def render(tab_key: str, plan: dict):
     st.markdown("### 기초자산 (Cash-in)")
     st.caption("엑셀 «이자 스케줄» 맨 위 표와 같은 자리입니다. **칸을 눌러 그 자리에서 고치세요.** "
                "비고도 엑셀에 그대로 들어갑니다.")
+    fee_label = plan.get("fee_label", "인수수수료")
     a_vals, a_notes = _info_editor(
         tab_key, "asset", ASSET_INFO,
         {"title": (plan.get("spc_name") or "") + " 기초자산",
          "start": plan.get("loan_date"), "borrower": plan.get("borrower"),
          "amount": plan.get("loan_amount"), "rate": plan.get("loan_rate"),
-         "part_rate": plan.get("part_rate"), "mat": plan.get("loan_maturity")},
-        _pay_text_auto(tab_key, "asset", "pre"))
+         "part_rate": plan.get("part_rate"), "mat": plan.get("loan_maturity"),
+         "etc": "후순위 대여는 매 이자지급일에 차주에게 지급 받음"},
+        _pay_text_auto(tab_key, "asset", "pre"), fee_label)
     loan_amount = a_vals.get("amount") or 0
     loan_rate = a_vals.get("rate") or 0.0          # 0.10 처럼 소수
     loan_date = a_vals.get("start") or date.today()
@@ -555,17 +580,18 @@ def render(tab_key: str, plan: dict):
         # 회차별 기본값 : 1회차는 issue_amount, 2·3회차는 issue_amount2/3
         suffix = "" if k == 0 else str(k + 1)
         seg = "bond%d" % k
+        _bname = (plan.get("bond_name" + suffix)
+                  or ("1-%d회 사모사채" % (k + 1) if nbond > 1 else "사모사채"))
         b_vals, b_notes = _info_editor(
             tab_key, seg, BOND_INFO,
-            {"title": plan.get("bond_name" + suffix)
-                      or ("1-%d회 사모사채" % (k + 1) if nbond > 1 else "사모사채"),
+            {"title": _bname, "name": _bname,
              "start": plan.get("issue_date"),
              "issue_type": plan.get("issue_type" + suffix),
              "amount": plan.get("issue_amount" + suffix),
              "rate": plan.get("issue_rate" + suffix),
              "fee_rate": plan.get("uw_fee_rate" + suffix),
              "mat": plan.get("bond_maturity")},
-            _pay_text_auto(tab_key, seg, "post"))
+            _pay_text_auto(tab_key, seg, "post"), fee_label)
         b_amt = b_vals.get("amount") or 0
         b_rate = b_vals.get("rate") or 0.0
         b_start = b_vals.get("start") or date.today()
@@ -586,9 +612,11 @@ def render(tab_key: str, plan: dict):
             "  · 지운 줄 %d개" % len(b_ov["drop"]) if b_ov["drop"] else ""))
         bonds.append({"start": b_start, "periods": b_per, "amount": b_amt, "rate": b_rate})
         binfo.append({
-            "title": b_vals.get("title"), "issue_type": b_vals.get("issue_type"),
+            "title": b_vals.get("title"), "name": b_vals.get("name"),
+            "issue_type": b_vals.get("issue_type"),
             "fee_mode": "rate", "fee_rate": b_vals.get("fee_rate"),
-            "pay_text": b_vals.get("pay_text"), "mat": b_mat, "notes": b_notes,
+            "pay_text": _pay_text_auto(tab_key, seg, "post"),
+            "mat": b_mat, "start": b_start, "notes": b_notes,
         })
 
     # ── 통합 표 ──
@@ -671,8 +699,10 @@ def render(tab_key: str, plan: dict):
             "asset_title": a_vals.get("title"),
             "borrower": a_vals.get("borrower"),
             "part_rate": a_vals.get("part_rate"),
-            "asset_pay_text": a_vals.get("pay_text"),
+            "asset_etc": a_vals.get("etc"),
+            "asset_pay_text": _pay_text_auto(tab_key, "asset", "pre"),
             "asset_notes": a_notes,
+            "fee_label": fee_label,
             "bonds": binfo,
         },
     }

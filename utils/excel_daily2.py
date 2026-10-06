@@ -186,7 +186,7 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
     ws.merge_cells("C13:D13")
     _set(ws, "C13", D.get("asset_etc") or "후순위 대여는 매 이자지급일에 차주에게 지급 받음",
          align=LEFT)
-    _box(ws, 2, 4, 4, 13)
+    _box(ws, 2, 5, 4, 13)        # 제목 줄(4행)은 상자 밖 — 원본 양식에 선이 없다
 
     # ── 1-N. 사모사채 개요 ──
     for k in range(nb):
@@ -223,7 +223,7 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
             _set(ws, f"{L}{r}", name, font=FONT_B, fill=FILL_LABEL)
             _set(ws, f"{V}{r}", val, numfmt=fmt)
             _set(ws, f"{N}{r}", note("bond", i, k), align=LEFT)
-        _box(ws, c0, 4, c0 + 2, 13)
+        _box(ws, c0, 5, c0 + 2, 13)   # 제목 줄(4행)은 상자 밖
 
     # ── 2. 자금판 (SPC 기준) ──
     ws.merge_cells("B15:D15")
@@ -331,4 +331,4 @@ def write_daily_sheet(ws, plan: dict, accounts: dict, refs: dict, nb: int):
     _set(ws, f"C{sum_r}", f"=SUM(C30:C{sum_r - 1})", font=FONT_B, numfmt=FMT_WON)
     _set(ws, f"D{sum_r}", None)
     _fill_row(ws, sum_r, 2, 4, FILL_SUM)
-    _box(ws, 2, 28, 4, sum_r)
+    _box(ws, 2, 29, 4, sum_r)     # 제목 줄(28행)은 상자 밖

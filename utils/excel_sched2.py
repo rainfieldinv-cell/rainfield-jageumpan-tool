@@ -16,10 +16,14 @@
 
 수식
     일수     = 말일-초일
-    금리     = $D$6 / $L$6 / $S$6 / $Z$6
-    이자금액 = ROUNDDOWN($D$5*금리셀*일수셀/365,0)
-    참여수수료(첫 구간) = $D$5*$D$7
-    인수수수료(발행일 행) = $L$7*$L$5 (요율) 또는 $L$7 (직접금액)
+    금리     = $D$8 / $L$9 / $S$9 / $Z$9
+    이자금액 = ROUNDDOWN($D$4*금리셀*일수셀/365,0)
+    참여수수료(첫 구간) = $D$4*$D$9
+    인수수수료(발행일 행) = $L$10*$L$5 (요율) 또는 $L$10 (직접금액)
+
+정보블록 줄 순서는 회사 자금판 양식(당일자금판 개요)과 같다.
+    기초자산 : 차주명 · 대출금액 · 대출일 · 만기일 · 대출기간 · 금리 · 참여수수료 · 기타
+    사모사채 : 발행방법 · 사채명 · 발행금액 · 발행일 · 만기일 · 대출기간 · 금리 · 수수료
 """
 
 from __future__ import annotations
@@ -41,9 +45,11 @@ ASSET_BASE = 3                                   # C
 BOND_BASE = [ASSET_BASE + SEG_W * i for i in (1, 2, 3)]   # 10(J) 17(Q) 24(X)
 
 # 색 (자금판(후) 와 같은 값)
+# 색 — 회사에서 쓰는 자금판 파일에서 그대로 뽑은 값(업무수탁용 7개 파일 모두 같았다)
+#   기초자산 주황 C55A11 · 사모사채 파랑 2F5597(회차가 몇이든 같은 파랑)
 F_GRAY = "F2F2F2"
-F_ASSET = "2F6B45"
-F_BONDS = ["1F4F8A", "1A4677", "13355A"]
+F_ASSET = "C55A11"
+F_BONDS = ["2F5597", "2F5597", "2F5597"]
 F_FEE = "CCC0DA"
 C_NAVY = "FF1A2B5E"
 
@@ -113,37 +119,38 @@ def _fill_rng(ws, c1, r1, c2, r2, hexv, text=None):
 #   라벨 = base(2칸 병합) · 값 = base+2 · 비고 = base+3(2칸 병합)
 # ─────────────────────────────────────────────
 def _info_block(ws, label_col, val_col, note_col, title, rows):
-    """제목·비고 머리는 굵은 상자, 안쪽 줄은 모두 같은 점선으로.
+    """개요 표 — 전부 얇은 실선.
 
-    (예전에는 라벨·값은 dashed, 비고는 dotted 라 줄이 서로 어긋나 보였고
-     비고 칸은 오른쪽 선이 없어 상자가 열려 있었다.)
+    굵은 선은 아래 «이자지급 스케줄» 표에만 쓴다(기초자산·사모사채를
+    구별하려고). 위쪽 개요와 후순위대여 표까지 굵게 두르면 어디가
+    경계인지 되레 안 보인다.
     """
     L, V, N = _L(label_col), _L(val_col), _L(note_col)
     NE = _L(note_col + 1)
     ws.merge_cells(f"{L}2:{V}2")
     t = _set(ws, f"{L}2", title, bold=True)
-    t.border = Border(top=_MED, bottom=_MED, left=_MED, right=_MED)
+    t.border = Border(top=_THIN, bottom=_THIN, left=_THIN, right=_THIN)
     ws.merge_cells(f"{N}2:{NE}2")
     b = _set(ws, f"{N}2", "비고", bold=True)
-    b.border = Border(top=_MED, bottom=_MED, left=_MED, right=_MED)
+    b.border = Border(top=_THIN, bottom=_THIN, left=_THIN, right=_THIN)
 
     last = len(rows) - 1
     for i, r in enumerate(rows):
         row = 3 + i
-        close = _MED if i == last else _DASH
+        top = close = _THIN
         ws.merge_cells(f"{L}{row}:{_L(label_col + 1)}{row}")
         lc = _set(ws, f"{L}{row}", r["label"], bold=True)
-        lc.border = Border(top=_DASH, bottom=close, left=_MED, right=_DASH)
+        lc.border = Border(top=top, bottom=close, left=_THIN, right=_THIN)
 
         vc = ws[f"{V}{row}"]
         vc.value = r.get("value")
         is_money = r.get("nf") == MONEY
         _set(ws, f"{V}{row}", nf=r.get("nf"), h="none" if is_money else "center")
-        vc.border = Border(top=_DASH, bottom=close, left=_DASH, right=_MED)
+        vc.border = Border(top=top, bottom=close, left=_THIN, right=_THIN)
 
         ws.merge_cells(f"{N}{row}:{NE}{row}")
-        nc = _set(ws, f"{N}{row}", r.get("note") or "", h="center")
-        nc.border = Border(top=_DASH, bottom=close, left=_MED, right=_MED)
+        nc = _set(ws, f"{N}{row}", r.get("note") or "", h="center", wrap=True)
+        nc.border = Border(top=top, bottom=close, left=_THIN, right=_THIN)
 
 
 # ─────────────────────────────────────────────
@@ -187,17 +194,18 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
     def _note(lst, i):
         return lst[i] if (lst and i < len(lst)) else None
 
+    # 줄 순서는 회사 자금판 양식(당일자금판 개요)과 같다.
+    #   3 차주명 / 4 대출금액 / 5 대출일 / 6 만기일 / 7 대출기간 / 8 금리 / 9 참여수수료 / 10 기타
     an = info.get("asset_notes") or []
     _info_block(ws, 2, 4, 5, info.get("asset_title") or "기초자산", [
-        {"label": "대출실행일", "value": am["start"], "nf": DATEF, "note": _note(an, 0)},
-        {"label": "차주", "value": info.get("borrower") or "", "note": _note(an, 1)},
-        {"label": "대출금액 (원)", "value": am["amount"], "nf": MONEY, "note": _note(an, 2)},
-        {"label": "대출금리", "value": am["rate"], "nf": RATE_INFO, "note": _note(an, 3)},
-        {"label": "참여수수료", "value": info.get("part_rate"), "nf": PCT2, "note": _note(an, 4)},
-        {"label": "이자지급일",
-         "value": info.get("asset_pay_text") or pay_text(am["pay_type"], am["rules"]),
-         "note": _note(an, 5)},
-        {"label": "만기일", "value": am["mat"], "nf": DATEF, "note": _note(an, 6)},
+        {"label": "차주명", "value": info.get("borrower") or "", "note": _note(an, 0)},
+        {"label": "대출금액(원)", "value": am["amount"], "nf": MONEY, "note": _note(an, 1)},
+        {"label": "대출일", "value": am["start"], "nf": DATEF, "note": _note(an, 2)},
+        {"label": "만기일", "value": am["mat"], "nf": DATEF, "note": _note(an, 3)},
+        {"label": "대출기간(일)", "value": "=D6-D5", "nf": NUM, "note": _note(an, 4)},
+        {"label": "금리(연,고정)", "value": am["rate"], "nf": RATE_INFO, "note": _note(an, 5)},
+        {"label": "참여수수료", "value": info.get("part_rate"), "nf": PCT2, "note": _note(an, 6)},
+        {"label": "기타", "value": info.get("asset_etc") or "", "note": _note(an, 7)},
     ])
 
     binfo = info.get("bonds") or []
@@ -208,16 +216,21 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         fee_mode = bi.get("fee_mode", "rate")
         fee_val = bi.get("fee_amount") if fee_mode == "amount" else bi.get("fee_rate")
         bn = bi.get("notes") or []
+        V = _L(base + 2)          # 값 열 (L / S / Z)
+        #   3 발행방법 / 4 사채명 / 5 발행금액 / 6 발행일 / 7 만기일
+        #   8 대출기간 / 9 금리 / 10 수수료
         _info_block(ws, base, base + 2, base + 3,
                     bi.get("title") or bond_label(k + 1, nb), [
-            {"label": "사모사채 발행일", "value": b["start"], "nf": DATEF, "note": _note(bn, 0)},
-            {"label": "발행 유형", "value": bi.get("issue_type") or "", "note": _note(bn, 1)},
-            {"label": "사모사채 발행금액(원)", "value": b["amount"], "nf": MONEY, "note": _note(bn, 2)},
-            {"label": "사모사채 발행금리", "value": b["rate"], "nf": RATE_INFO, "note": _note(bn, 3)},
-            {"label": "사모사채 인수수수료(원)", "value": fee_val,
-             "nf": MONEY if fee_mode == "amount" else PCT2, "note": _note(bn, 4)},
-            {"label": "이자지급일", "value": bi.get("pay_text") or "", "note": _note(bn, 5)},
-            {"label": "만기일", "value": bi.get("mat"), "nf": DATEF, "note": _note(bn, 6)},
+            {"label": "발행방법", "value": bi.get("issue_type") or "", "note": _note(bn, 0)},
+            {"label": "사채명", "value": bi.get("name") or bi.get("title") or "",
+             "note": _note(bn, 1)},
+            {"label": "발행금액(원)", "value": b["amount"], "nf": MONEY, "note": _note(bn, 2)},
+            {"label": "발행일", "value": b["start"], "nf": DATEF, "note": _note(bn, 3)},
+            {"label": "만기일", "value": bi.get("mat"), "nf": DATEF, "note": _note(bn, 4)},
+            {"label": "대출기간(일)", "value": f"={V}7-{V}6", "nf": NUM, "note": _note(bn, 5)},
+            {"label": "금리(연,고정)", "value": b["rate"], "nf": RATE_INFO, "note": _note(bn, 6)},
+            {"label": info.get("fee_label") or "인수수수료", "value": fee_val,
+             "nf": MONEY if fee_mode == "amount" else PCT2, "note": _note(bn, 7)},
         ])
 
     # ── 지급날짜 축 ──
@@ -271,13 +284,13 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         _set(ws, f"{D}{r}", p.end, nf=DATEF); _box(ws, f"{D}{r}")
         _set(ws, f"{E}{r}", p.pay, nf=DATEF); _box(ws, f"{E}{r}")
         _set(ws, f"{F}{r}", f"={D}{r}-{C}{r}", nf=NUM); _box(ws, f"{F}{r}")
-        _set(ws, f"{G}{r}", "=$D$6", nf=PCT2); _box(ws, f"{G}{r}")
+        _set(ws, f"{G}{r}", "=$D$8", nf=PCT2); _box(ws, f"{G}{r}")
         if idx == 0 and info.get("part_rate") is not None:
-            _set(ws, f"{H}{r}", "=$D$5*$D$7", nf=NUM)
+            _set(ws, f"{H}{r}", "=$D$4*$D$9", nf=NUM)
         else:
             _set(ws, f"{H}{r}", nf=MONEY)
         _box(ws, f"{H}{r}")
-        _set(ws, f"{I}{r}", f"=ROUNDDOWN($D$5*{G}{r}*{F}{r}/365,0)", nf=MONEY); _box(ws, f"{I}{r}")
+        _set(ws, f"{I}{r}", f"=ROUNDDOWN($D$4*{G}{r}*{F}{r}/365,0)", nf=MONEY); _box(ws, f"{I}{r}")
 
     # ── 사모사채 ──
     for k in range(nb):
@@ -289,12 +302,12 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         bi = (info.get("bonds") or [{}] * nb)[k] if k < len(info.get("bonds") or []) else {}
 
         base_r = row_of[b["start"]]
-        _set(ws, f"{bC}{base_r}", f"={P}3", nf=DATEF); _box(ws, f"{bC}{base_r}")
+        _set(ws, f"{bC}{base_r}", f"={P}6", nf=DATEF); _box(ws, f"{bC}{base_r}")
         fee_mode = bi.get("fee_mode", "rate")
         given = (bi.get("fee_amount") is not None) if fee_mode == "amount" else (bi.get("fee_rate") is not None)
         if given:
             _set(ws, f"{bH}{base_r}",
-                 f"=${P}$7" if fee_mode == "amount" else f"=${P}$7*${P}$5", nf=MONEY)
+                 f"=${P}$10" if fee_mode == "amount" else f"=${P}$10*${P}$5", nf=MONEY)
         else:
             _set(ws, f"{bH}{base_r}", nf=MONEY)
         _box(ws, f"{bH}{base_r}")
@@ -306,7 +319,7 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
             _set(ws, f"{bD}{r}", p.end, nf=DATEF); _box(ws, f"{bD}{r}")
             _set(ws, f"{bE}{r}", p.pay, nf=DATEF); _box(ws, f"{bE}{r}")
             _set(ws, f"{bF}{r}", f"={bD}{r}-{bC}{r}", nf=NUM); _box(ws, f"{bF}{r}")
-            _set(ws, f"{bG}{r}", f"=${P}$6", nf=PCT2); _box(ws, f"{bG}{r}")
+            _set(ws, f"{bG}{r}", f"=${P}$9", nf=PCT2); _box(ws, f"{bG}{r}")
             _set(ws, f"{bH}{r}", nf=MONEY); _box(ws, f"{bH}{r}")
             _set(ws, f"{bI}{r}", f"=ROUNDDOWN(${P}$5*{bG}{r}*{bF}{r}/365,0)", nf=MONEY)
             _box(ws, f"{bI}{r}")
@@ -384,9 +397,9 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
     if use_fee:
         c = addfee_col(nb)
         _fill_rng(ws, c, 12, c, 13, F_FEE, C_NAVY)
-    _fill_rng(ws, 2, 3, 3, 9, F_GRAY)
+    _fill_rng(ws, 2, 3, 3, 10, F_GRAY)
     for k in range(nb):
-        _fill_rng(ws, BOND_BASE[k], 3, BOND_BASE[k] + 1, 9, F_GRAY)
+        _fill_rng(ws, BOND_BASE[k], 3, BOND_BASE[k] + 1, 10, F_GRAY)
     _fill_rng(ws, 2, total_row, lastc, total_row, F_GRAY)
 
     # ── 세그먼트 구분선 (12행 ~ 합계행) ──
@@ -466,12 +479,5 @@ def write_wht(ws, meta: dict, asset: list, rate_pct: float, local_pct: float):
              h="right", fill=F_GRAY)
         _box(ws, f"{L}{sr}")
 
-    # 바깥은 굵게 — 다른 표들과 같이 하나의 상자로 보이게
-    for r in range(hr, sr + 1):
-        for c in range(2, 7):
-            cell = ws.cell(row=r, column=c)
-            b = cell.border
-            cell.border = Border(
-                top=_MED if r == hr else b.top, bottom=_MED if r == sr else b.bottom,
-                left=_MED if c == 2 else b.left, right=_MED if c == 6 else b.right)
+    # 굵은 선은 «이자지급 스케줄» 표에만 쓴다 — 여기는 얇은 선 그대로.
     return {"first": first, "sum_row": sr}

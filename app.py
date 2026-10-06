@@ -1758,6 +1758,9 @@ def render_step_excel_spc(tab_key: str):
     biz = (biz or "").strip() or "자금판"
     safe = re.sub(r'[\/:*?"<>|]', "", biz).replace(" ", "")
     yymmdd = date.today().strftime("%y%m%d")
+    # 적은 이름이 그대로 파일명이 된다(뒤에 날짜만 붙음). 받기 전에 눈으로 확인하라고 보여준다.
+    st.caption("받을 파일 이름 — 전체 **%s_%s.xlsx** / 사채권자 **%s_사채권자_1회_%s.xlsx**"
+               % (safe, yymmdd, safe, yymmdd))
 
     # 4단계 표에서 고친 값·비고를 반영한 plan 을 쓴다
     plan = daily_ui.apply_to_plan(plan, tab_key)
@@ -1785,9 +1788,9 @@ def render_step_excel_spc(tab_key: str):
         bio = build_2tab(plan, accounts, sched, info)
         st.download_button(
             "📥 전체 자금판 다운로드 (탭 2개)",
-            data=bio.getvalue(), file_name=f"{safe}_자금판_{yymmdd}.xlsx",
+            data=bio.getvalue(), file_name=f"{safe}_{yymmdd}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary", width="stretch",
+            key=f"dlall_{tab_key}", type="primary", width="stretch",
         )
     except Exception as e:
         st.error(f"전체 자금판을 만들지 못했습니다: {e}")
@@ -1806,10 +1809,12 @@ def render_step_excel_spc(tab_key: str):
             "pay_type": "post", "pay_text": bi.get("pay_text") or "3개월 후취",
         }
         # 상단 비고 7칸 ← 5단계 사모사채 개요 표의 비고 (줄이 그대로 짝지어진다)
-        NOTE_KEYS = ["issue_date_note", "issue_type_note", "amount_note", "rate_note",
-                     "fee_note", "pay_note", "maturity_note"]
-        for i, nk in enumerate(NOTE_KEYS):
-            nl = bi.get("notes") or []
+        #   5단계 사모사채 표 줄 순서 → 사채권자 자금판 상단 비고 칸
+        #   0 발행방법 1 사채명 2 발행금액 3 발행일 4 만기일 5 대출기간 6 금리 7 수수료
+        NOTE_AT = {0: "issue_type_note", 2: "amount_note", 3: "issue_date_note",
+                   4: "maturity_note", 6: "rate_note", 7: "fee_note"}
+        nl = bi.get("notes") or []
+        for i, nk in NOTE_AT.items():
             m[nk] = nl[i] if i < len(nl) else None
         # 계좌(은행명·계좌번호·예금주)·각주는 4단계에서 넣은 값
         m.update(daily_ui.bond_meta(tab_key, k))
