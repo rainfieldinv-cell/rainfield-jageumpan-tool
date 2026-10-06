@@ -221,7 +221,8 @@ def _sig(plan, nb):
     keys = ["borrower", "loan_amount", "loan_date", "loan_maturity", "loan_rate",
             "part_rate", "issue_date", "bond_maturity", "liq", "reserve",
             "am_total", "am_manager", "acc_supply", "acc_manager",
-            "bt_supply", "bt_manager", "uw_manager", "fee_label", "nbond"]
+            "bt_supply", "bt_manager", "uw_manager", "uw_fee_direct",
+            "fee_label", "nbond"]
     for k in range(nb):
         for b in ("issue_type", "bond_name", "issue_amount", "issue_rate", "uw_fee_rate"):
             keys.append(_bond_key(b, k))
@@ -329,8 +330,13 @@ def render(tab_key: str, plan: dict) -> dict:
     am_total = plan.get("am_total")
     acc_supply = plan.get("acc_supply") or 0
     bt_supply = plan.get("bt_supply") or 0
-    uw_amt = sum(int(float(eff.get(_bond_key("uw_fee_rate", k)) or 0)
-                     * float(eff.get(_bond_key("issue_amount", k)) or 0)) for k in range(nb))
+    # 3단계에서 금액을 직접 넣었으면 그 금액이 우선.
+    # (주선·자문수수료처럼 요율이 0%이고 정액으로 정해지는 건이 있다.
+    #  app.py 의 uw_fee_total 계산과 같은 규칙 — 직접 입력 > 0 이면 그걸 쓴다.)
+    uw_direct = int(plan.get("uw_fee_direct") or 0)
+    uw_amt = uw_direct if uw_direct > 0 else sum(
+        int(float(eff.get(_bond_key("uw_fee_rate", k)) or 0)
+            * float(eff.get(_bond_key("issue_amount", k)) or 0)) for k in range(nb))
     vat = lambda x: int(round((x or 0) * 0.1))
     am_supply = int(round((am_total or 0) * 100 / 110)) if am_total else None
 
