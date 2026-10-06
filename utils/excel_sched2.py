@@ -55,6 +55,7 @@ C_NAVY = "FF1A2B5E"
 
 _THIN = Side(style="thin")
 _MED = Side(style="medium")
+_THICK = Side(style="thick")      # 이자지급 스케줄 표의 구간 경계선 (가장 굵은 실선)
 _DASH = Side(style="dashed")
 _DOT = Side(style="dotted")
 
@@ -413,31 +414,47 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
     #   ※ openpyxl 은 저장할 때 병합범위의 테두리를 '왼쪽 위 칸' 것으로 다시 칠한다.
     #     그래서 병합범위 안의 칸에 선을 주면 저장하면서 사라진다.
     #     병합된 자리면 그 범위의 왼쪽 위 칸에 준다(= 범위 바깥선이 그 칸을 따라간다).
-    def _anchor_cell(r, c):
+    def _range_at(r, c):
         for rng in ws.merged_cells.ranges:
             if rng.min_row <= r <= rng.max_row and rng.min_col <= c <= rng.max_col:
-                return rng.min_row, rng.min_col
-        return r, c
+                return rng
+        return None
+
+    def _put(rr, cc, side):
+        cell = ws.cell(row=rr, column=cc)
+        b = cell.border
+        kw = {"left": b.left, "right": b.right, "top": b.top, "bottom": b.bottom}
+        kw[side] = _THICK
+        cell.border = Border(**kw)
 
     def vline(ci, side):
+        """세로 구분선. 병합칸이면 그 범위의 '가장자리'일 때만 긋는다.
+        (합계 줄처럼 지급날짜~지급일이 한 칸으로 묶인 곳에서 안쪽에 선을 주면,
+         저장 직전 병합칸 테두리를 맞출 때 엉뚱한 자리로 번진다.)"""
         if ci < 2:
             return
         for r in range(12, total_row + 1):
-            rr, cc = _anchor_cell(r, ci)
-            cell = ws.cell(row=rr, column=cc)
-            b = cell.border
-            kw = {"left": b.left, "right": b.right, "top": b.top, "bottom": b.bottom}
-            kw[side] = _MED
-            cell.border = Border(**kw)
+            rng = _range_at(r, ci)
+            if rng is not None:
+                if side == "right" and ci != rng.max_col:
+                    continue
+                if side == "left" and ci != rng.min_col:
+                    continue
+                _put(rng.min_row, rng.min_col, side)
+            else:
+                _put(r, ci, side)
 
     def hline(c1, c2, r, side):
         for c in range(c1, c2 + 1):
-            rr, cc = _anchor_cell(r, c)
-            cell = ws.cell(row=rr, column=cc)
-            b = cell.border
-            kw = {"left": b.left, "right": b.right, "top": b.top, "bottom": b.bottom}
-            kw[side] = _MED
-            cell.border = Border(**kw)
+            rng = _range_at(r, c)
+            if rng is not None:
+                if side == "bottom" and r != rng.max_row:
+                    continue
+                if side == "top" and r != rng.min_row:
+                    continue
+                _put(rng.min_row, rng.min_col, side)
+            else:
+                _put(r, c, side)
 
     starts = [2, ASSET_BASE] + BOND_BASE[:nb]
     if use_fee:
@@ -446,7 +463,7 @@ def write_sched_sheet(ws, sched: dict, info: dict = None):
         vline(c, "left"); vline(c - 1, "right")
     vline(lastc, "right")
 
-    # 표 전체의 위·아래도 굵게 — 기초자산 / 1·2·3회가 각각 상자로 보이게
+    # 표 전체의 위·아래도 같은 굵기로 — 기초자산 / 1·2·3회가 각각 상자로 보이게
     hline(2, lastc, 12, "top")
     hline(2, lastc, total_row, "bottom")
 

@@ -40,7 +40,23 @@ def finish_merges(ws):
       파일 속 XML 을 직접 봐야 보인다.
     """
     for mcr in list(ws.merged_cells.ranges):
-        mcr.format()
+        mcr.format()                      # 빈 자리에 MergedCell 을 만들어 둔다
+        # format() 은 이미 선이 있는 칸은 덮어쓰지 않는다(예: 얇은 선 위에 굵은 선).
+        # 그래서 가장자리 칸의 바깥 선은 왼쪽 위 칸 것으로 직접 덮어쓰고,
+        # 병합칸 안쪽 선은 비운다.
+        a = ws.cell(row=mcr.min_row, column=mcr.min_col).border
+        for r in range(mcr.min_row, mcr.max_row + 1):
+            for c in range(mcr.min_col, mcr.max_col + 1):
+                if r == mcr.min_row and c == mcr.min_col:
+                    continue
+                cell = ws._cells.get((r, c))
+                if cell is None:
+                    continue
+                cell.border = Border(
+                    top=a.top if r == mcr.min_row else Side(),
+                    bottom=a.bottom if r == mcr.max_row else Side(),
+                    left=a.left if c == mcr.min_col else Side(),
+                    right=a.right if c == mcr.max_col else Side())
 
 
 def build_2tab(plan: dict, accounts: dict, sched: dict, info: dict = None) -> BytesIO:
