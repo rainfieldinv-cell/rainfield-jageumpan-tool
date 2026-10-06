@@ -69,7 +69,8 @@ FONT = "맑은 고딕"
 _F = Font(name=FONT, size=10)
 _FB = Font(name=FONT, size=10, bold=True)
 _FW = Font(name=FONT, size=10, bold=True, color="FFFFFFFF")
-_THIN = Side(style="thin", color="A5A5A5")
+# 테두리 색은 회사 원본 사채권자 자금판과 같이 자동(검정). 회색이면 흐려 보인다.
+_THIN = Side(style="thin")
 _BOX = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 _CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
 _LEFT = Alignment(horizontal="left", vertical="center", wrap_text=True)

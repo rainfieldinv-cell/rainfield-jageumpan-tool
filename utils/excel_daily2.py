@@ -69,7 +69,11 @@ def _set(ws, coord, value=None, font=FONT, fill=None, align=CENTER, numfmt=None)
 
 
 def _box(ws, c1, r1, c2, r2):
-    """안쪽은 얇게, 바깥은 굵게.
+    """표 전체를 얇은 선으로 두른다.
+
+    회사 원본 «당일자금판» 의 개요 표에는 굵은 선이 없다. 표끼리는 머리 줄의
+    색(파랑·남색)과 칸 색(연노랑·연초록)으로 구별한다. 굵은 선까지 두르면
+    오히려 어수선해져 쓰지 않는다.
 
     ※ 병합한 칸 주의 : 엑셀은 병합범위의 테두리를 '왼쪽 위 칸' 것으로 다시 칠한다.
       그래서 B4:D4 처럼 가로로 병합된 줄에 칸마다 선을 주면, 저장할 때
@@ -101,8 +105,7 @@ def _box(ws, c1, r1, c2, r2):
                 top, bot = (m.min_row == r1), (m.max_row == r2)
                 lef, rig = (m.min_col == c1), (m.max_col == c2)
             ws.cell(row=rr, column=cc).border = Border(
-                top=_MED if top else _THIN, bottom=_MED if bot else _THIN,
-                left=_MED if lef else _THIN, right=_MED if rig else _THIN)
+                top=_THIN, bottom=_THIN, left=_THIN, right=_THIN)
 
 
 def _fill_row(ws, row, c1, c2, fill):
